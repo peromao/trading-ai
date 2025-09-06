@@ -17,10 +17,13 @@ def weekday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from data.collector import get_stock_data
+    from data.collector import get_stock_data, get_portfolio_tickers
 
-    tickers = _get_tickers("TICKERS", ["AAPL", "MSFT", "GOOGL"])
-    print(f"[weekday_processing] Fetching data for: {tickers}")
+    # Prefer tickers from latest positions; allow env override for quick tests
+    tickers = _get_tickers("TICKERS", []) or get_portfolio_tickers()
+    if not tickers:
+        tickers = ["AAPL", "MSFT", "GOOGL"]
+    print(f"[weekday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
     print("[weekday_processing] Fetch complete")
     return data
@@ -33,12 +36,16 @@ def sunday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from app.data.collector import get_stock_data
+    from app.data.collector import get_stock_data, get_portfolio_tickers
 
-    tickers = _get_tickers(
-        "SUNDAY_TICKERS", _get_tickers("TICKERS", ["AAPL", "MSFT", "GOOGL"])
+    tickers = (
+        _get_tickers("SUNDAY_TICKERS", [])
+        or _get_tickers("TICKERS", [])
+        or get_portfolio_tickers()
     )
-    print(f"[sunday_processing] Fetching data for: {tickers}")
+    if not tickers:
+        tickers = ["AAPL", "MSFT", "GOOGL"]
+    print(f"[sunday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
     print("[sunday_processing] Fetch complete")
     return data

@@ -23,14 +23,16 @@ If you need additional libraries, add them with `pip install <package>` and then
 - `pip freeze > requirements.txt`
 
 **Run the orchestrator (weekday test)**
-- Set optional environment variables:
-  - `TICKERS` (comma-separated, default: `AAPL,MSFT,GOOGL`)
+- Ensure your portfolio exists at `data/positions.csv` with columns: `date,ticker,qty,avg_price`.
+  - The orchestrator selects tickers from the most recent `date` in that file (handles weekend gaps).
+- Optional overrides (for ad-hoc tests):
+  - `TICKERS` or `SUNDAY_TICKERS` (comma-separated)
 - Run the weekday processing once:
   - `python app/orchestrator.py --run weekday`
   - or as a module: `python -m app.orchestrator --run weekday`
 
 **Run the Sunday processing (optional)**
-- Set optional `SUNDAY_TICKERS` (falls back to `TICKERS`).
+- Uses the same latest `data/positions.csv` by default. You can override with `SUNDAY_TICKERS`.
 - Run once:
   - `python app/orchestrator.py --run sunday`
 
