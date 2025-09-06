@@ -10,7 +10,6 @@ def get_stock_data(stocksTickers: List[str]):
         dat = yf.Ticker(ticker)
         dailyData.append(dat.history(period="1d"))
 
-    print(dailyData)
     return dailyData
 
 
