@@ -25,7 +25,12 @@ def weekday_processing():
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[weekday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
-    print("[weekday_processing] Fetch complete")
+    print("[weekday_processing] Fetch complete; inserting into data/stocks_info.csv")
+    # Persist the most recent daily row per ticker
+    from data.inserter import insert_latest_daily_data
+
+    inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
+    print(f"[weekday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
     return data
 
 
@@ -36,7 +41,7 @@ def sunday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from app.data.collector import get_stock_data, get_portfolio_tickers
+    from data.collector import get_stock_data, get_portfolio_tickers
 
     tickers = (
         _get_tickers("SUNDAY_TICKERS", [])
@@ -47,7 +52,12 @@ def sunday_processing():
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[sunday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
-    print("[sunday_processing] Fetch complete")
+    print("[sunday_processing] Fetch complete; inserting into data/stocks_info.csv")
+    # Persist the most recent daily row per ticker
+    from data.inserter import insert_latest_daily_data
+
+    inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
+    print(f"[sunday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
     return data
 
 
