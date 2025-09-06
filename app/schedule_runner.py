@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, time as dtime
 if __package__ is None or __package__ == "":
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import orchestrador
+from app import orchestrator
 
 
 @dataclass
@@ -104,9 +104,9 @@ def main(argv=None):
     )
 
     if args.run_now == "weekday":
-        _run_job("weekday_processing", orchestrador.weekday_processing)
+        _run_job("weekday_processing", orchestrator.weekday_processing)
     elif args.run_now == "sunday":
-        _run_job("sunday_processing", orchestrador.sunday_processing)
+        _run_job("sunday_processing", orchestrator.sunday_processing)
 
     # Main scheduler loop
     while True:
@@ -123,9 +123,9 @@ def main(argv=None):
         _run_job(
             job_name,
             (
-                orchestrador.weekday_processing
+                orchestrator.weekday_processing
                 if job_name == "weekday_processing"
-                else orchestrador.sunday_processing
+                else orchestrator.sunday_processing
             ),
         )
 

@@ -9,4 +9,10 @@ def get_stock_data(stocksTickers: list):
 
         dailyData.append(dat.history(period="1d"))
 
+    print(dailyData)
+
     return dailyData
+
+
+def get_portfolio_ticeckers():
+    return None

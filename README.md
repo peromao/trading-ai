@@ -22,10 +22,27 @@ Upgrade `pip` (recommended)
 If you need additional libraries, add them with `pip install <package>` and then freeze the current set into `requirements.txt` so others can reproduce your environment:
 - `pip freeze > requirements.txt`
 
-**Run the code**
-- Example (directly executing a module or script):
-  - `python app/data/collector.py`
-  - or, if structured as a module: `python -m app.data.collector`
+**Run the orchestrator (weekday test)**
+- Set optional environment variables:
+  - `TICKERS` (comma-separated, default: `AAPL,MSFT,GOOGL`)
+- Run the weekday processing once:
+  - `python app/orchestrator.py --run weekday`
+  - or as a module: `python -m app.orchestrator --run weekday`
+
+**Run the Sunday processing (optional)**
+- Set optional `SUNDAY_TICKERS` (falls back to `TICKERS`).
+- Run once:
+  - `python app/orchestrator.py --run sunday`
+
+**Start the recurring scheduler**
+- Configure times (local timezone):
+  - `WEEKDAY_AT` in `HH:MM` (default: `18:00`)
+  - `SUNDAY_AT` in `HH:MM` (default: `09:00`)
+- Start the loop:
+  - `python -m app.schedule_runner`
+- Optionally kick off a job immediately and continue scheduling:
+  - `python -m app.schedule_runner --run-now weekday`
+  - `python -m app.schedule_runner --run-now sunday`
 
 When you’re done, deactivate the virtual environment:
 - `deactivate`
