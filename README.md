@@ -1,4 +1,15 @@
-# trading-ai
+# tr(AI)ding
+
+tr(AI)ding is an experimental system for automating a U.S. equities investment portfolio using AI agents.
+It combines two complementary agents:
+
+Weekly agent (Sunday): performs macro/strategic analysis of the portfolio and produces a “market theory” to guide the upcoming week.
+
+Daily agent (Monday–Friday): runs after market close and makes tactical decisions (buy, sell, hold, rebalance, or take no action), always aligned with the weekly strategy.
+
+The project orchestrates portfolio data collection (positions, cash, executed orders), updates market prices, builds prompts, and executes interactions with OpenAI models. The goal is to simulate a medium/long-term portfolio with diversification and risk management rules, while still allowing dynamic day-to-day adjustments.
+
+## QuickStart
 
 Quickstart instructions to set up a virtual environment, install dependencies, and run the code.
 
