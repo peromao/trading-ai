@@ -17,6 +17,7 @@ def weekday_processing():
         get_latest_weekly_research,
     )
     from openai_integration import send_prompt
+    from prompts.prompts import Prompts
 
     # Load positions first and derive tickers from all rows
     positions_df = get_all_positions()
@@ -49,7 +50,14 @@ def weekday_processing():
     print(f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}")
     print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
-    # print(send_prompt("Qual a capital da bulgária?"))
+    # Build and send the daily AI prompt
+    prompt_text = Prompts.daily_ai_prompt(
+        positions_df=positions_df,
+        latest_cash=latest_cash,
+        latest_orders=latest_orders,
+        weekly_research=weekly_research,
+    )
+    print(send_prompt(prompt_text))
     return data
 
 
