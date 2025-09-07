@@ -17,7 +17,12 @@ def weekday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from data.collector import get_stock_data, get_portfolio_tickers
+    from data.collector import (
+        get_stock_data,
+        get_portfolio_tickers,
+        get_latest_cash,
+        get_all_positions,
+    )
     from openai_integration import send_prompt
 
     # Prefer tickers from latest positions; allow env override for quick tests
@@ -32,6 +37,12 @@ def weekday_processing():
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
     print(f"[weekday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
+
+    # Fetch latest cash info and all positions before sending the prompt
+    latest_cash = get_latest_cash()
+    positions_df = get_all_positions()
+    print(f"[weekday_processing] Latest cash: {latest_cash}")
+    print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
     print(send_prompt("Qual a capital da bulgária?"))
     return data
