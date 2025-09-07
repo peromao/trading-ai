@@ -18,29 +18,7 @@ def _clean_ticker(t: str) -> str:
     return t.strip().strip('"').strip("'")
 
 
-def get_portfolio_tickers(positions_path: str = "data/positions.csv") -> List[str]:
-    """Return unique tickers from the most recent date in positions.csv.
-
-    Handles weekend gaps by simply selecting the max 'date' present in the file.
-    """
-    df = pd.read_csv(positions_path, parse_dates=["date"])
-    if df.empty:
-        return []
-    latest_date = df["date"].max()
-    latest = df[df["date"] == latest_date]
-    tickers = [
-        _clean_ticker(t)
-        for t in latest["ticker"].astype(str).tolist()
-        if str(t).strip()
-    ]
-    # Preserve order while deduping
-    seen = set()
-    unique = []
-    for t in tickers:
-        if t not in seen:
-            seen.add(t)
-            unique.append(t)
-    return unique
+## Removed: get_portfolio_tickers. Use get_all_positions() and filter by latest date in orchestrator.
 
 
 def get_latest_cash(cash_path: str = "data/cash.csv") -> Dict[str, Any]:

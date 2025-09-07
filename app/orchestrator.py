@@ -1,13 +1,5 @@
-import os
 import argparse
 from typing import List
-
-
-def _get_tickers(env_var: str, default: List[str]) -> List[str]:
-    raw = os.getenv(env_var, "")
-    if raw.strip():
-        return [t.strip() for t in raw.split(",") if t.strip()]
-    return default
 
 
 def weekday_processing():
@@ -19,14 +11,20 @@ def weekday_processing():
     # Import locally to avoid issues when running as script vs module
     from data.collector import (
         get_stock_data,
-        get_portfolio_tickers,
         get_latest_cash,
         get_all_positions,
     )
     from openai_integration import send_prompt
 
-    # Prefer tickers from latest positions; allow env override for quick tests
-    tickers = _get_tickers("TICKERS", []) or get_portfolio_tickers()
+    # Load positions first and derive tickers from all rows
+    positions_df = get_all_positions()
+    tickers: List[str] = []
+    if not positions_df.empty:
+        seen = set()
+        for t in positions_df.get("ticker", []).astype(str).tolist():
+            if t and t not in seen:
+                seen.add(t)
+                tickers.append(t)
     if not tickers:
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[weekday_processing] Fetching data for (latest positions): {tickers}")
@@ -40,11 +38,10 @@ def weekday_processing():
 
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
-    positions_df = get_all_positions()
     print(f"[weekday_processing] Latest cash: {latest_cash}")
     print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
-    print(send_prompt("Qual a capital da bulgária?"))
+    # print(send_prompt("Qual a capital da bulgária?"))
     return data
 
 
@@ -55,13 +52,16 @@ def sunday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from data.collector import get_stock_data, get_portfolio_tickers
+    from data.collector import get_stock_data, get_all_positions
 
-    tickers = (
-        _get_tickers("SUNDAY_TICKERS", [])
-        or _get_tickers("TICKERS", [])
-        or get_portfolio_tickers()
-    )
+    positions_df = get_all_positions()
+    tickers: List[str] = []
+    if not positions_df.empty:
+        seen = set()
+        for t in positions_df.get("ticker", []).astype(str).tolist():
+            if t and t not in seen:
+                seen.add(t)
+                tickers.append(t)
     if not tickers:
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[sunday_processing] Fetching data for (latest positions): {tickers}")
