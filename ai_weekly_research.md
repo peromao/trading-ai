@@ -1,3 +1,5 @@
+# 2025-09-05
+
 Resumo Analítico
 Cenário Macroeconômico e Tendências Gerais (2025-2030)
 O panorama global em 2025 mostra crescimento econômico moderado e inflação gradualmente em queda. O FMI projeta crescimento mundial em torno de 3,0% em 2025, subindo ligeiramente em 2026, refletindo alguma resiliência apesar de riscos persistentes
