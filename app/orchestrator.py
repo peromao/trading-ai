@@ -18,6 +18,7 @@ def weekday_processing():
     """
     # Import locally to avoid issues when running as script vs module
     from data.collector import get_stock_data, get_portfolio_tickers
+    from openai_integration import send_prompt
 
     # Prefer tickers from latest positions; allow env override for quick tests
     tickers = _get_tickers("TICKERS", []) or get_portfolio_tickers()
@@ -31,6 +32,8 @@ def weekday_processing():
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
     print(f"[weekday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
+
+    print(send_prompt("Qual a capital da bulgária?"))
     return data
 
 
