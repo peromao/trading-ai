@@ -59,3 +59,24 @@ def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFram
     if "ticker" in df.columns:
         df["ticker"] = df["ticker"].astype(str).map(_clean_ticker)
     return df
+
+
+def get_latest_orders(orders_path: str = "data/orders.csv") -> pd.DataFrame:
+    """Return all order rows from the latest date in orders.csv.
+
+    - Normalizes header names by stripping spaces
+    - Parses `date` as datetime
+    - Cleans `ticker` values (removes quotes/whitespace)
+    - Returns a DataFrame filtered to rows with max(date)
+    """
+    df = pd.read_csv(orders_path)
+    # Normalize headers
+    df.columns = [c.strip() for c in df.columns]
+    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    if "ticker" in df.columns:
+        df["ticker"] = df["ticker"].astype(str).map(_clean_ticker)
+    if df.empty or "date" not in df.columns:
+        return df
+    latest_date = df["date"].max()
+    return df[df["date"] == latest_date].copy()

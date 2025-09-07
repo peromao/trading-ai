@@ -13,6 +13,7 @@ def weekday_processing():
         get_stock_data,
         get_latest_cash,
         get_all_positions,
+        get_latest_orders,
     )
     from openai_integration import send_prompt
 
@@ -38,7 +39,9 @@ def weekday_processing():
 
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
+    latest_orders = get_latest_orders()
     print(f"[weekday_processing] Latest cash: {latest_cash}")
+    print(f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}")
     print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
     # print(send_prompt("Qual a capital da bulgária?"))
