@@ -19,22 +19,51 @@ Upgrade `pip` (recommended)
 **Install dependencies**
 - `pip install -r requirements.txt`
 
+OpenAI integration (Agents SDK)
+- The app uses the OpenAI Python SDK (aka Agents SDK) via `app/openai_integration.py`.
+- Environment variables are loaded automatically from `.env` using `python-dotenv`.
+- Required variables in `.env` (repo root):
+  - `OPENAI_API_KEY=...` (required)
+  - `OPENAI_MODEL=gpt-4o-mini` (optional; defaults to `gpt-4o-mini`)
+  - `OPENAI_BASE_URL=...` (optional; for gateways/proxies)
+
+Example `.env`:
+```
+OPENAI_API_KEY=sk-your-key
+OPENAI_MODEL=gpt-4o-mini
+# OPENAI_BASE_URL=https://your-gateway/v1
+```
+
 If you need additional libraries, add them with `pip install <package>` and then freeze the current set into `requirements.txt` so others can reproduce your environment:
 - `pip freeze > requirements.txt`
 
-**Run the orchestrator (weekday test)**
-- Ensure your portfolio exists at `data/positions.csv` with columns: `date,ticker,qty,avg_price`.
-  - The orchestrator selects tickers from the most recent `date` in that file (handles weekend gaps).
-- Optional overrides (for ad-hoc tests):
-  - `TICKERS` or `SUNDAY_TICKERS` (comma-separated)
-- Run the weekday processing once:
+**Data inputs**
+- `data/positions.csv` (portfolio positions)
+  - Columns: `date,ticker,qty,avg_price`
+  - Tickers are cleaned of quotes/whitespace.
+  - The orchestrator derives the tickers universe from all rows (not only latest date).
+- `data/cash.csv` (cash snapshot)
+  - Columns: `date, amount, total_portfolio_amount` (header spacing is normalized)
+- `data/orders.csv` (executed orders)
+  - Columns: `date, ticker, qty, price`
+  - The app reads ALL rows from the latest `date` present.
+- `ai_weekly_research.md` (weekly strategy)
+  - Markdown with dated headers like `# YYYY-MM-DD`. The most recent dated section is parsed and used as strategic guidance.
+
+**Run the orchestrator (weekday)**
+- Populate the CSVs and `.env` as above.
+- Run once:
   - `python app/orchestrator.py --run weekday`
-  - or as a module: `python -m app.orchestrator --run weekday`
+  - or: `python -m app.orchestrator --run weekday`
+  - Behavior:
+    - Loads positions and derives unique tickers.
+    - Fetches latest daily prices with yfinance and updates `data/stocks_info.csv`.
+    - Loads latest cash, latest-date orders, and the latest weekly research section.
+    - Builds a compact prompt with this data (`app/prompts/prompts.py`) and sends it to the OpenAI model.
 
 **Run the Sunday processing (optional)**
-- Uses the same latest `data/positions.csv` by default. You can override with `SUNDAY_TICKERS`.
-- Run once:
-  - `python app/orchestrator.py --run sunday`
+- `python app/orchestrator.py --run sunday`
+- Collects data similarly but does not send the AI prompt by default.
 
 **Start the recurring scheduler**
 - Configure times (local timezone):
@@ -48,3 +77,14 @@ If you need additional libraries, add them with `pip install <package>` and then
 
 When you’re done, deactivate the virtual environment:
 - `deactivate`
+
+Project structure highlights
+- `app/data/collector.py`
+  - `get_all_positions()`: loads and cleans positions.
+  - `get_latest_cash()`: reads the latest cash row.
+  - `get_latest_orders()`: returns all rows from the latest date in `orders.csv`.
+  - `get_latest_weekly_research()`: parses the latest dated section from the weekly research Markdown.
+- `app/data/inserter.py`: persists the latest daily market row per ticker to `data/stocks_info.csv`.
+- `app/prompts/prompts.py`: `Prompts.daily_ai_prompt(...)` builds the daily prompt including CSV snapshots and research.
+- `app/openai_integration.py`: minimal wrapper over the OpenAI Agents SDK `responses.create(...)` API.
+- `app/orchestrator.py`: coordinates the weekday/sunday flows and calls the AI.
