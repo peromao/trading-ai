@@ -47,7 +47,9 @@ def weekday_processing():
     print(
         f"[weekday_processing] Weekly research date: {weekly_research.get('date_str','')}, chars: {len(weekly_research.get('text',''))}"
     )
-    print(f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}")
+    print(
+        f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}"
+    )
     print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
     # Build and send the daily AI prompt
@@ -57,7 +59,7 @@ def weekday_processing():
         latest_orders=latest_orders,
         weekly_research=weekly_research,
     )
-    print(send_prompt(prompt_text))
+    print(send_prompt(prompt_text, model="gpt-5-mini-2025-08-07"))
     return data
 
 
