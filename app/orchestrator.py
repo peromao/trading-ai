@@ -32,12 +32,12 @@ def weekday_processing():
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[weekday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
-    print("[weekday_processing] Fetch complete; inserting into data/stocks_info.csv")
+    print("[weekday_processing] Fetch complete; inserting into sqlite: stocks_info")
     # Persist the most recent daily row per ticker
     from data.inserter import insert_latest_daily_data
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
-    print(f"[weekday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
+    print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
@@ -84,12 +84,12 @@ def sunday_processing():
         tickers = ["AAPL", "MSFT", "GOOGL"]
     print(f"[sunday_processing] Fetching data for (latest positions): {tickers}")
     data = get_stock_data(tickers)
-    print("[sunday_processing] Fetch complete; inserting into data/stocks_info.csv")
+    print("[sunday_processing] Fetch complete; inserting into sqlite: stocks_info")
     # Persist the most recent daily row per ticker
     from data.inserter import insert_latest_daily_data
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
-    print(f"[sunday_processing] Inserted/updated {inserted} rows into stocks_info.csv")
+    print(f"[sunday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
     return data
 
 

@@ -1,11 +1,13 @@
-import yfinance as yf
 import pandas as pd
 import re
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
 
+from data.db import bootstrap_db, df_from_query
+
 
 def get_stock_data(stocksTickers: List[str]):
+    import yfinance as yf  # imported here to avoid dependency for other helpers
     dailyData = []
 
     for ticker in stocksTickers:
@@ -24,21 +26,18 @@ def _clean_ticker(t: str) -> str:
 
 
 def get_latest_cash(cash_path: str = "data/cash.csv") -> Dict[str, Any]:
-    """Return the latest cash information from cash.csv.
+    """Return the latest cash information from SQLite.
 
-    - Normalizes header names by stripping spaces.
-    - Parses the `date` column as datetime.
-    - Returns a dict with keys: `date`, `amount`, `total_portfolio_amount`.
+    Returns a dict with keys: `date`, `amount`, `total_portfolio_amount`.
     """
-    df = pd.read_csv(cash_path)
-    # Normalize headers (handle "date, amount, total_portfolio_amount")
-    df.columns = [c.strip() for c in df.columns]
-    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    bootstrap_db()
+    df = df_from_query(
+        "SELECT date, amount, total_portfolio_amount FROM cash ORDER BY date DESC LIMIT 1"
+    )
     if df.empty:
         return {"date": None, "amount": None, "total_portfolio_amount": None}
-    latest_idx = df["date"].idxmax()
-    row = df.loc[latest_idx]
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    row = df.iloc[0]
     return {
         "date": row["date"],
         "amount": row.get("amount"),
@@ -47,41 +46,33 @@ def get_latest_cash(cash_path: str = "data/cash.csv") -> Dict[str, Any]:
 
 
 def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFrame:
-    """Load and return the full positions dataset with cleaned columns.
-
-    - Parses `date` as datetime
-    - Strips whitespace from headers
-    - Cleans ticker values (removes quotes/whitespace)
-    """
-    df = pd.read_csv(positions_path)
-    # Normalize headers
-    df.columns = [c.strip() for c in df.columns]
-    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+    """Load and return the full positions dataset from SQLite."""
+    bootstrap_db()
+    df = df_from_query("SELECT date, ticker, qty, avg_price FROM positions")
+    if not df.empty:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    if "ticker" in df.columns:
-        df["ticker"] = df["ticker"].astype(str).map(_clean_ticker)
+        if "ticker" in df.columns:
+            df["ticker"] = df["ticker"].astype(str).map(_clean_ticker)
     return df
 
 
 def get_latest_orders(orders_path: str = "data/orders.csv") -> pd.DataFrame:
-    """Return all order rows from the latest date in orders.csv.
-
-    - Normalizes header names by stripping spaces
-    - Parses `date` as datetime
-    - Cleans `ticker` values (removes quotes/whitespace)
-    - Returns a DataFrame filtered to rows with max(date)
-    """
-    df = pd.read_csv(orders_path)
-    # Normalize headers
-    df.columns = [c.strip() for c in df.columns]
-    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    """Return all order rows from the latest date in SQLite."""
+    bootstrap_db()
+    df = df_from_query(
+        """
+        SELECT date, ticker, qty, price
+        FROM orders
+        WHERE date = (SELECT MAX(date) FROM orders)
+        ORDER BY rowid
+        """
+    )
+    if df.empty:
+        return df
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     if "ticker" in df.columns:
         df["ticker"] = df["ticker"].astype(str).map(_clean_ticker)
-    if df.empty or "date" not in df.columns:
-        return df
-    latest_date = df["date"].max()
-    return df[df["date"] == latest_date].copy()
+    return df
 
 
 def get_latest_weekly_research(research_path: str = "ai_weekly_research.md") -> Dict[str, Any]:

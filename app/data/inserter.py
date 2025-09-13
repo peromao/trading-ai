@@ -2,6 +2,7 @@ import os
 from typing import List, Sequence
 
 import pandas as pd
+from data.db import bootstrap_db, get_connection
 
 
 def _ensure_dir(path: str):
@@ -21,14 +22,14 @@ def insert_latest_daily_data(
     tickers: Sequence[str],
     out_csv: str = "data/stocks_info.csv",
 ):
-    """Insert the most recent daily row per ticker into a CSV.
+    """Insert the most recent daily row per ticker into SQLite (stocks_info).
 
     Parameters
     - daily_data: sequence of DataFrames as returned by `get_stock_data`,
                   in the same order as `tickers`. Each DataFrame should
                   include columns: Open, High, Low, Close, Volume, Dividends, Stock Splits.
     - tickers: sequence of ticker symbols corresponding to each DataFrame.
-    - out_csv: target CSV file (default: data/prices.csv)
+    - out_csv: deprecated (no longer used; kept for backward-compat)
 
     Behavior
     - Extracts the most recent row from each DataFrame.
@@ -64,46 +65,28 @@ def insert_latest_daily_data(
     if not records:
         return 0
 
-    new_df = pd.DataFrame.from_records(records)
-
-    # Load existing file if present, then upsert on (date, ticker)
-    if os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
-        try:
-            existing = pd.read_csv(out_csv, dtype={"ticker": str})
-        except Exception:
-            existing = pd.DataFrame()
-    else:
-        existing = pd.DataFrame()
-
-    # Align columns with existing file if it exists; otherwise use default columns order
-    if not existing.empty:
-        # Add any missing columns to new_df
-        for col in existing.columns:
-            if col not in new_df.columns:
-                new_df[col] = pd.NA
-        # Reorder new_df to match existing
-        new_df = new_df[existing.columns]
-        merged = pd.concat([existing, new_df], ignore_index=True)
-    else:
-        # Choose a reasonable default column order
-        preferred_cols = [
-            "date",
-            "ticker",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "dividends",
-            "stock_splits",
-        ]
-        ordered = [c for c in preferred_cols if c in new_df.columns]
-        ordered += [c for c in new_df.columns if c not in ordered]
-        new_df = new_df[ordered]
-        merged = new_df.copy()
-    merged.drop_duplicates(subset=["date", "ticker"], keep="last", inplace=True)
-    merged.sort_values(["date", "ticker"], inplace=True)
-
-    _ensure_dir(out_csv)
-    merged.to_csv(out_csv, index=False)
+    # Insert records into SQLite with upsert semantics
+    bootstrap_db()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.executemany(
+            """
+            INSERT INTO stocks_info(
+                date, ticker, open, high, low, close, volume, dividends, stock_splits
+            ) VALUES (:date, :ticker, :open, :high, :low, :close, :volume, :dividends, :stock_splits)
+            ON CONFLICT(date, ticker) DO UPDATE SET
+                open=excluded.open,
+                high=excluded.high,
+                low=excluded.low,
+                close=excluded.close,
+                volume=excluded.volume,
+                dividends=COALESCE(excluded.dividends, stocks_info.dividends),
+                stock_splits=COALESCE(excluded.stock_splits, stocks_info.stock_splits)
+            """,
+            records,
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return len(records)
