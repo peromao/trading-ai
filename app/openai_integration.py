@@ -14,14 +14,14 @@ except Exception:
     pass
 
 
-class Order:
+class Order(BaseModel):
     ticker: str
     qty: int
 
 
 class AiDecision(BaseModel):
     daily_summary: str
-    orders: List[Order]
+    orders: list[Order]
     explanation: str
 
 
