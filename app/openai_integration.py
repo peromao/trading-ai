@@ -25,7 +25,7 @@ class AiDecision(BaseModel):
     explanation: str
 
 
-def send_prompt(prompt: str, *, model: Optional[str] = None) -> str:
+def send_prompt(prompt: str, *, model: Optional[str] = None) -> AiDecision:
     """Send a prompt through a freshly created OpenAI Agent and return its reply.
 
     Args:
@@ -46,7 +46,7 @@ def send_prompt(prompt: str, *, model: Optional[str] = None) -> str:
     agent = Agent(name="Assistant", output_type=AiDecision)
 
     result = Runner.run_sync(agent, prompt)
-    print(result.final_output)
+    return result.final_output
 
 
 def main(argv=None):
