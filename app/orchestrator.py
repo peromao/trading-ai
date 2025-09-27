@@ -1,5 +1,53 @@
 import argparse
-from typing import List
+from typing import Iterable, List, Optional, Sequence
+
+import pandas as pd
+
+
+def build_latest_prices_df(
+    price_frames: Sequence[Optional[pd.DataFrame]],
+    tickers: Iterable[str],
+) -> pd.DataFrame:
+    """Return a dataframe containing the latest OHLCV row for each ticker."""
+
+    latest_price_rows = []
+    for tkr, df in zip(tickers, price_frames):
+        if df is None or getattr(df, "empty", True):
+            continue
+        try:
+            last_idx = df.index[-1]
+            row = df.iloc[-1]
+        except Exception:
+            continue
+
+        ts = pd.Timestamp(last_idx)
+        try:
+            date_str = ts.date().isoformat()
+        except Exception:
+            date_str = str(ts)
+
+        def _safe_float(val):
+            return None if val is None or pd.isna(val) else float(val)
+
+        volume_val = row.get("Volume")
+        if volume_val is None or pd.isna(volume_val):
+            volume = None
+        else:
+            volume = int(volume_val)
+
+        latest_price_rows.append(
+            {
+                "date": date_str,
+                "ticker": str(tkr).strip(),
+                "open": _safe_float(row.get("Open")),
+                "high": _safe_float(row.get("High")),
+                "low": _safe_float(row.get("Low")),
+                "close": _safe_float(row.get("Close")),
+                "volume": volume,
+            }
+        )
+
+    return pd.DataFrame(latest_price_rows) if latest_price_rows else pd.DataFrame()
 
 
 def weekday_processing():
@@ -44,6 +92,8 @@ def weekday_processing():
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
     print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
+    latest_prices_df = build_latest_prices_df(data, tickers)
+
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
     weekly_research = get_latest_weekly_research()
@@ -63,6 +113,7 @@ def weekday_processing():
         latest_cash=latest_cash,
         latest_orders=latest_orders,
         weekly_research=weekly_research,
+        latest_prices_df=latest_prices_df,
     )
     ai_decision = send_prompt(prompt_text)
 

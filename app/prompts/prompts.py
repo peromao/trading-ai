@@ -16,6 +16,7 @@ class Prompts:
         latest_cash: Dict[str, Any],
         latest_orders,  # pandas.DataFrame | None
         weekly_research: Dict[str, Any],
+        latest_prices_df=None,  # pandas.DataFrame | None
     ) -> str:
         """Build a concise daily AI prompt using portfolio and research context.
 
@@ -65,6 +66,21 @@ class Prompts:
         except Exception:
             positions_csv = ""
 
+        # Latest market prices (daily close)
+        try:
+            have_prices = latest_prices_df is not None and getattr(latest_prices_df, "empty", True) is False
+        except Exception:
+            have_prices = False
+        price_rows = 0
+        if have_prices:
+            price_rows = len(latest_prices_df)
+            try:
+                prices_csv = latest_prices_df.to_csv(index=False)
+            except Exception:
+                prices_csv = ""
+        else:
+            prices_csv = ""
+
         prompt = (
             "Você é um gestor tático de uma carteira de ações dos EUA.\n"
             "Seu papel é analisar diariamente os dados recebidos sobre a carteira atual, execuções passadas e caixa disponível, e decidir se deve comprar, vender ou manter ativos, alinhado à teoria macro definida no domingo.\n\n"
@@ -77,8 +93,11 @@ class Prompts:
             f"- Universo de tickers nas posições: {tickers_str}\n"
             f"- Caixa: amount={cash_amt}, total_portfolio_amount={total_amt}\n"
             f"- Ordens mais recentes (linhas: {orders_rows}; prévia: {orders_preview})\n"
+            f"- Dados de preços de fechamento de hoje (linhas: {price_rows}) listados em latest_prices\n"
             "\n--- positions (CSV) ---\n"
             f"{positions_csv}\n"
+            "--- latest_prices (CSV; fechamento oficial do dia) ---\n"
+            f"{prices_csv}\n"
             "--- latest_orders (CSV; última data) ---\n"
             f"{orders_csv}\n"
             f"--- weekly_research ({research_date}) ---\n"
@@ -99,6 +118,7 @@ class Prompts:
             "- Se não houver oportunidades claras, afirme: 'Hoje não há trades recomendados.'\n"
             "- Se houver necessidade de ajuste (ex.: concentração alta, caixa abaixo do limite, posição desalinhada da macro), proponha rebalanceamento.\n"
             "- Você é o agente tático; siga o plano estratégico de domingo como guia.\n"
+            "- Sempre referenciar a coluna close de latest_prices para justificar preços de entrada/saída.\n"
         )
         return prompt
 
