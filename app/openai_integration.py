@@ -2,7 +2,7 @@ import os
 import argparse
 from typing import Optional
 from agents import Agent, Runner
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Load env vars from .env automatically (repo root or parents)
 try:
@@ -17,7 +17,7 @@ except Exception:
 class Order(BaseModel):
     ticker: str
     qty: int
-    price: int
+    price: float = Field(..., ge=0.0)
 
 
 class AiDecision(BaseModel):
