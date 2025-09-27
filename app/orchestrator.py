@@ -15,6 +15,7 @@ def weekday_processing():
         get_all_positions,
         get_latest_orders,
         get_latest_weekly_research,
+        get_portfolio,
     )
     from openai_integration import send_prompt
     from prompts.prompts import Prompts
@@ -69,6 +70,9 @@ def weekday_processing():
     else:
         print(f"[weekday_processing] No orders for today")
         return
+
+    current_portfolio = get_portfolio()
+    print(current_portfolio)
 
     return
 

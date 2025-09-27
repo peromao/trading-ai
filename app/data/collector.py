@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
 
 from data.db import bootstrap_db, df_from_query
+from portfolio_manager import Portfolio, PortfolioPosition
 
 
 def get_stock_data(stocksTickers: List[str]):
@@ -127,3 +128,35 @@ def get_latest_weekly_research(research_path: str = "ai_weekly_research.md") -> 
         pass
 
     return {"date": latest_date, "date_str": latest_date_str, "text": text}
+
+
+def get_portfolio() -> Portfolio:
+    """Return the full positions dataset as a Portfolio instance."""
+    positions_df = get_all_positions()
+    if positions_df.empty:
+        return Portfolio.from_rows([])
+
+    records = positions_df.to_dict(orient="records")
+    positions: List[PortfolioPosition] = []
+    for row in records:
+        raw_date = row.get("date")
+        if pd.isna(raw_date):
+            parsed_date = None
+        else:
+            ts = pd.to_datetime(raw_date, errors="coerce")
+            parsed_date = ts.date() if not pd.isna(ts) else None
+
+        ticker = str(row.get("ticker", "")).strip().strip('"').strip("'")
+        qty = row.get("qty")
+        avg_price = row.get("avg_price")
+
+        positions.append(
+            PortfolioPosition(
+                date=parsed_date,
+                ticker=ticker,
+                qty=None if qty is None or pd.isna(qty) else float(qty),
+                avg_price=None if avg_price is None or pd.isna(avg_price) else float(avg_price),
+            )
+        )
+
+    return Portfolio.from_rows(positions)
