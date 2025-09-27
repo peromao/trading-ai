@@ -72,7 +72,11 @@ def weekday_processing():
         return
 
     current_portfolio = get_portfolio()
-    print(current_portfolio)
+
+    from portfolio_manager import apply_orders
+
+    new_portfolio = apply_orders(current_portfolio, orders)
+    print(new_portfolio)
 
     return
 
