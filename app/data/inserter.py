@@ -4,6 +4,8 @@ from typing import List, Sequence
 import pandas as pd
 from data.db import bootstrap_db, get_connection
 
+from openai_integration import Order
+
 
 def _ensure_dir(path: str):
     d = os.path.dirname(os.path.abspath(path))
@@ -48,7 +50,7 @@ def insert_latest_daily_data(
         row = df.iloc[-1]
         record = {
             "date": _to_date_str(last_idx),
-            "ticker": str(tkr).strip().strip("\"").strip("'"),
+            "ticker": str(tkr).strip().strip('"').strip("'"),
             "open": float(row.get("Open")),
             "high": float(row.get("High")),
             "low": float(row.get("Low")),
@@ -90,3 +92,39 @@ def insert_latest_daily_data(
     finally:
         conn.close()
     return len(records)
+
+
+def insert_new_order(order: Order):
+    """Append a single executed order into SQLite `orders`.
+
+    The `date` stored is today's calendar date (YYYY-MM-DD, UTC-based).
+
+    Returns the inserted row id.
+    """
+    if order is None:
+        raise ValueError("order must not be None")
+
+    # Normalize fields
+    ticker = str(order.ticker).strip().strip('"').strip("'")
+    if not ticker:
+        raise ValueError("order.ticker must be a non-empty string")
+
+    qty = int(order.qty)
+    price = float(order.price)
+
+    # Use current date (ignore time component)
+    date_str = _to_date_str(pd.Timestamp.utcnow())
+
+    # Insert into SQLite
+    bootstrap_db()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO orders(date, ticker, qty, price) VALUES (?, ?, ?, ?)",
+            (date_str, ticker, qty, price),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()

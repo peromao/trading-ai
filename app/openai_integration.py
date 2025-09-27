@@ -17,6 +17,7 @@ except Exception:
 class Order(BaseModel):
     ticker: str
     qty: int
+    price: int
 
 
 class AiDecision(BaseModel):

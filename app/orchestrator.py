@@ -34,7 +34,7 @@ def weekday_processing():
     data = get_stock_data(tickers)
     print("[weekday_processing] Fetch complete; inserting into sqlite: stocks_info")
     # Persist the most recent daily row per ticker
-    from data.inserter import insert_latest_daily_data
+    from data.inserter import insert_latest_daily_data, insert_new_order
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
     print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
@@ -60,8 +60,17 @@ def weekday_processing():
         weekly_research=weekly_research,
     )
     ai_decision = send_prompt(prompt_text)
-    print(ai_decision)
-    return data
+
+    if len(ai_decision.orders) != 0:
+        print(f"[weekday_processing] Inserting {len(ai_decision.orders)} orders")
+        for order in ai_decision.orders:
+            insert_new_order(order)
+            print(f"[weekday_processing] Order inserted: {order}")
+    else:
+        print(f"[weekday_processing] No orders for today")
+        return
+
+    return
 
 
 def sunday_processing():
