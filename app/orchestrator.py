@@ -68,7 +68,6 @@ def weekday_processing():
     from openai_integration import send_prompt
     from prompts.prompts import Prompts
 
-    # Load positions first and derive tickers from all rows
     positions_df = get_all_positions()
     tickers: List[str] = []
     if not positions_df.empty:
