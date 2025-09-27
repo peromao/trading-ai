@@ -1,10 +1,12 @@
+import math
 import os
-from typing import List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
 from data.db import bootstrap_db, get_connection
 
 from openai_integration import Order
+from portfolio_manager import Portfolio
 
 
 def _ensure_dir(path: str):
@@ -128,3 +130,142 @@ def insert_new_order(order: Order):
         return cur.lastrowid
     finally:
         conn.close()
+
+
+def _float_equal(a: Optional[float], b: Optional[float], *, tol: float = 1e-9) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    try:
+        return math.isclose(float(a), float(b), rel_tol=tol, abs_tol=tol)
+    except (TypeError, ValueError):
+        return False
+
+
+def sync_positions_with_portfolio(
+    portfolio: Portfolio,
+    *,
+    as_of: Optional[Any] = None,
+) -> Dict[str, int]:
+    """Sync the SQLite `positions` table with the provided portfolio snapshot.
+
+    Args:
+        portfolio: Current portfolio holdings.
+        as_of: Optional date override (str/date/datetime). Used when writing new or
+            changed rows. Defaults to UTC now if not provided and the position
+            instance lacks a date.
+
+    Returns:
+        Dict with counts of inserted, updated, and deleted rows.
+    """
+
+    default_date_str = _to_date_str(as_of or pd.Timestamp.utcnow())
+
+    bootstrap_db()
+    conn = get_connection()
+    inserted = updated = deleted = 0
+
+    try:
+        cur = conn.cursor()
+
+        # Load existing rows keyed by ticker, keeping the most recent entry.
+        rows = cur.execute(
+            "SELECT rowid as rowid, date, ticker, qty, avg_price FROM positions"
+        ).fetchall()
+
+        existing_by_ticker: Dict[str, Dict[str, Any]] = {}
+        duplicate_rowids: List[int] = []
+
+        for row in rows:
+            ticker = str(row["ticker"])
+            if not ticker:
+                continue
+
+            current = existing_by_ticker.get(ticker)
+            current_date = (row["date"] or "")
+
+            if current is None:
+                existing_by_ticker[ticker] = {
+                    "rowid": row["rowid"],
+                    "date": row["date"],
+                    "qty": row["qty"],
+                    "avg_price": row["avg_price"],
+                }
+                continue
+
+            stored_date = current["date"] or ""
+
+            if current_date > stored_date or (
+                current_date == stored_date and row["rowid"] > current["rowid"]
+            ):
+                duplicate_rowids.append(current["rowid"])
+                existing_by_ticker[ticker] = {
+                    "rowid": row["rowid"],
+                    "date": row["date"],
+                    "qty": row["qty"],
+                    "avg_price": row["avg_price"],
+                }
+            else:
+                duplicate_rowids.append(row["rowid"])
+
+        # Remove duplicates so only one row per ticker remains.
+        for rowid in duplicate_rowids:
+            cur.execute("DELETE FROM positions WHERE rowid = ?", (rowid,))
+            deleted += cur.rowcount
+
+        # Compute target positions keyed by ticker.
+        target_positions: Dict[str, Any] = {}
+        for position in portfolio.positions:
+            ticker = str(position.ticker)
+            if not ticker:
+                continue
+            target_positions[ticker] = position
+
+        existing_tickers = set(existing_by_ticker.keys())
+        target_tickers = set(target_positions.keys())
+
+        # Remove tickers no longer present in the portfolio.
+        for ticker in existing_tickers - target_tickers:
+            cur.execute("DELETE FROM positions WHERE ticker = ?", (ticker,))
+            deleted += cur.rowcount
+            existing_by_ticker.pop(ticker, None)
+
+        # Upsert the remaining tickers.
+        for ticker, position in target_positions.items():
+            qty = None if position.qty is None else float(position.qty)
+            avg_price = None if position.avg_price is None else float(position.avg_price)
+
+            if position.date is not None:
+                desired_date = _to_date_str(position.date)
+            else:
+                desired_date = default_date_str
+
+            existing = existing_by_ticker.get(ticker)
+
+            if existing is None:
+                cur.execute(
+                    "INSERT INTO positions(date, ticker, qty, avg_price) VALUES (?, ?, ?, ?)",
+                    (desired_date, ticker, qty, avg_price),
+                )
+                inserted += 1
+                continue
+
+            same_qty = _float_equal(existing["qty"], qty)
+            same_avg = _float_equal(existing["avg_price"], avg_price)
+            same_date = (existing["date"] or "") == desired_date
+
+            if same_qty and same_avg and same_date:
+                continue
+
+            cur.execute(
+                "UPDATE positions SET date = ?, qty = ?, avg_price = ? WHERE rowid = ?",
+                (desired_date, qty, avg_price, existing["rowid"]),
+            )
+            updated += cur.rowcount
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"inserted": inserted, "updated": updated, "deleted": deleted}

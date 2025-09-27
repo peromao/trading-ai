@@ -48,7 +48,9 @@ def apply_orders(portfolio: Portfolio, orders: Iterable[Order]) -> Portfolio:
 
         if existing is None:
             if delta_qty < 0:
-                raise ValueError(f"Cannot sell ticker '{ticker_key}' that is not in the portfolio")
+                raise ValueError(
+                    f"Cannot sell ticker '{ticker_key}' that is not in the portfolio"
+                )
             positions_by_ticker[ticker_key] = PortfolioPosition(
                 date=None,
                 ticker=ticker_key,
@@ -58,7 +60,9 @@ def apply_orders(portfolio: Portfolio, orders: Iterable[Order]) -> Portfolio:
             continue
 
         existing_qty = float(existing.qty) if existing.qty is not None else 0.0
-        existing_avg_price = float(existing.avg_price) if existing.avg_price is not None else 0.0
+        existing_avg_price = (
+            float(existing.avg_price) if existing.avg_price is not None else 0.0
+        )
 
         new_qty = existing_qty + delta_qty
 
@@ -89,7 +93,5 @@ def apply_orders(portfolio: Portfolio, orders: Iterable[Order]) -> Portfolio:
             avg_price=new_avg_price,
         )
 
-    updated_positions = sorted(
-        positions_by_ticker.values(), key=lambda pos: pos.ticker
-    )
+    updated_positions = sorted(positions_by_ticker.values(), key=lambda pos: pos.ticker)
     return Portfolio.from_rows(updated_positions)
