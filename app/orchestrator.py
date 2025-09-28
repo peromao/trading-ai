@@ -168,7 +168,13 @@ def sunday_processing():
     Calls the data collector and returns the fetched data.
     """
     # Import locally to avoid issues when running as script vs module
-    from data.collector import get_stock_data, get_all_positions
+    from data.collector import (
+        get_stock_data,
+        get_all_positions,
+        get_latest_cash,
+        get_latest_weekly_research,
+        get_latest_orders,
+    )
 
     positions_df = get_all_positions()
     tickers: List[str] = []
@@ -188,7 +194,23 @@ def sunday_processing():
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
     print(f"[sunday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
-    return data
+
+    latest_prices_df = build_latest_prices_df(data, tickers)
+
+    # Fetch latest cash info and all positions before sending the prompt
+    latest_cash = get_latest_cash()
+    weekly_research = get_latest_weekly_research()
+    latest_orders = get_latest_orders()
+    print(f"[weekday_processing] Latest cash: {latest_cash.get('amount')}")
+    print(
+        f"[weekday_processing] Weekly research date: {weekly_research.get('date_str','')}, chars: {len(weekly_research.get('text',''))}"
+    )
+    print(
+        f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}"
+    )
+    print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
+
+    return
 
 
 def main(argv=None):
