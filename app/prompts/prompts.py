@@ -62,13 +62,18 @@ class Prompts:
 
         # Positions CSV snapshot
         try:
-            positions_csv = positions_df.to_csv(index=False) if positions_df is not None else ""
+            positions_csv = (
+                positions_df.to_csv(index=False) if positions_df is not None else ""
+            )
         except Exception:
             positions_csv = ""
 
         # Latest market prices (daily close)
         try:
-            have_prices = latest_prices_df is not None and getattr(latest_prices_df, "empty", True) is False
+            have_prices = (
+                latest_prices_df is not None
+                and getattr(latest_prices_df, "empty", True) is False
+            )
         except Exception:
             have_prices = False
         price_rows = 0
