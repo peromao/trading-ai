@@ -46,6 +46,38 @@ def get_latest_cash(cash_path: str = "data/cash.csv") -> Dict[str, Any]:
     }
 
 
+def get_latest_cash_before(as_of) -> Dict[str, Any]:
+    """Return the latest cash row strictly before a given date.
+
+    Args:
+        as_of: str/date/datetime. Rows with date < as_of are eligible.
+    Returns dict with keys: `date`, `amount`, `total_portfolio_amount`, or
+    all None if none exists.
+    """
+    bootstrap_db()
+    try:
+        as_of_dt = pd.to_datetime(as_of, errors="coerce")
+    except Exception:
+        as_of_dt = pd.NaT
+    if pd.isna(as_of_dt):
+        return {"date": None, "amount": None, "total_portfolio_amount": None}
+
+    as_of_str = as_of_dt.date().strftime("%Y-%m-%d")
+    df = df_from_query(
+        "SELECT date, amount, total_portfolio_amount FROM cash WHERE date < ? ORDER BY date DESC LIMIT 1",
+        params=[as_of_str],
+    )
+    if df.empty:
+        return {"date": None, "amount": None, "total_portfolio_amount": None}
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    row = df.iloc[0]
+    return {
+        "date": row["date"],
+        "amount": row.get("amount"),
+        "total_portfolio_amount": row.get("total_portfolio_amount"),
+    }
+
+
 def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFrame:
     """Load and return the full positions dataset from SQLite."""
     bootstrap_db()

@@ -24,6 +24,21 @@ class Portfolio:
         return cls(tuple(rows))
 
 
+@dataclass(frozen=True)
+class CashSnapshot:
+    """Represents a cash balance snapshot for a given date.
+
+    - date: calendar day for the snapshot
+    - amount: uninvested cash balance at end of the day
+    - total_portfolio_amount: optional total portfolio value for the day
+      (leave as None if you don't compute it elsewhere)
+    """
+
+    date: date
+    amount: float
+    total_portfolio_amount: Optional[float] = None
+
+
 def apply_orders(portfolio: Portfolio, orders: Iterable[Order]) -> Portfolio:
     """Apply executed orders to the current portfolio and return the updated state."""
 
@@ -95,3 +110,21 @@ def apply_orders(portfolio: Portfolio, orders: Iterable[Order]) -> Portfolio:
 
     updated_positions = sorted(positions_by_ticker.values(), key=lambda pos: pos.ticker)
     return Portfolio.from_rows(updated_positions)
+
+
+def compute_cash_after_orders(prev_cash: float, orders: Iterable[Order]) -> float:
+    """Compute end-of-day cash from previous cash and executed orders.
+
+    Sign convention (matches Order):
+      - qty > 0 (buy) consumes cash: delta = -qty * price
+      - qty < 0 (sell) adds cash:   delta = -qty * price
+
+    No fees are applied.
+    """
+    delta = 0.0
+    for o in orders or []:
+        # Ensure numeric types
+        q = float(o.qty)
+        p = float(o.price)
+        delta += -(q * p)
+    return float(prev_cash) + delta

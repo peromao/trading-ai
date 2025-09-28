@@ -60,6 +60,7 @@ def weekday_processing():
     from data.collector import (
         get_stock_data,
         get_latest_cash,
+        get_latest_cash_before,
         get_all_positions,
         get_latest_orders,
         get_latest_weekly_research,
@@ -86,6 +87,7 @@ def weekday_processing():
         insert_latest_daily_data,
         insert_new_order,
         sync_positions_with_portfolio,
+        insert_cash_snapshot,
     )
 
     inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
@@ -116,9 +118,11 @@ def weekday_processing():
     )
     ai_decision = send_prompt(prompt_text)
 
-    if len(ai_decision.orders) != 0:
-        print(f"[weekday_processing] Inserting {len(ai_decision.orders)} orders")
-        for order in ai_decision.orders:
+    orders = ai_decision.orders
+
+    if len(orders) != 0:
+        print(f"[weekday_processing] Inserting {len(orders)} orders")
+        for order in orders:
             insert_new_order(order)
             print(f"[weekday_processing] Order inserted: {order}")
     else:
@@ -127,11 +131,32 @@ def weekday_processing():
 
     current_portfolio = get_portfolio()
 
-    from portfolio_manager import apply_orders
+    from portfolio_manager import (
+        apply_orders,
+        compute_cash_after_orders,
+        CashSnapshot,
+    )
 
     new_portfolio = apply_orders(current_portfolio, orders)
 
     sync_positions_with_portfolio(new_portfolio)
+
+    as_of_date = pd.Timestamp.utcnow().date()
+    prior_cash = get_latest_cash_before(as_of_date)
+    prev_amount = prior_cash.get("amount") if prior_cash else None
+    prev_cash_val = (
+        0.0 if prev_amount is None or pd.isna(prev_amount) else float(prev_amount)
+    )
+
+    new_cash_val = compute_cash_after_orders(prev_cash_val, orders)
+
+    snapshot = CashSnapshot(
+        date=as_of_date, amount=new_cash_val, total_portfolio_amount=None
+    )
+    insert_cash_snapshot(snapshot)
+    print(
+        f"[weekday_processing] Cash snapshot written for {as_of_date}: prev={prev_cash_val:.2f} -> new={new_cash_val:.2f}"
+    )
 
     return
 

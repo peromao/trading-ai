@@ -6,7 +6,7 @@ import pandas as pd
 from data.db import bootstrap_db, get_connection
 
 from openai_integration import Order
-from portfolio_manager import Portfolio
+from portfolio_manager import Portfolio, CashSnapshot
 
 
 def _ensure_dir(path: str):
@@ -183,7 +183,7 @@ def sync_positions_with_portfolio(
                 continue
 
             current = existing_by_ticker.get(ticker)
-            current_date = (row["date"] or "")
+            current_date = row["date"] or ""
 
             if current is None:
                 existing_by_ticker[ticker] = {
@@ -234,7 +234,9 @@ def sync_positions_with_portfolio(
         # Upsert the remaining tickers.
         for ticker, position in target_positions.items():
             qty = None if position.qty is None else float(position.qty)
-            avg_price = None if position.avg_price is None else float(position.avg_price)
+            avg_price = (
+                None if position.avg_price is None else float(position.avg_price)
+            )
 
             if position.date is not None:
                 desired_date = _to_date_str(position.date)
@@ -269,3 +271,42 @@ def sync_positions_with_portfolio(
         conn.close()
 
     return {"inserted": inserted, "updated": updated, "deleted": deleted}
+
+
+def insert_cash_snapshot(snapshot: CashSnapshot) -> None:
+    """Insert or replace a cash snapshot row in SQLite `cash`.
+
+    This function performs no business logic: it simply writes the provided
+    snapshot (date, amount, total_portfolio_amount) using upsert semantics.
+    """
+    if snapshot is None:
+        raise ValueError("snapshot must not be None")
+
+    if snapshot.date is None:
+        raise ValueError("snapshot.date must not be None")
+
+    bootstrap_db()
+    conn = get_connection()
+    try:
+        # Normalize date to yyyy-mm-dd
+        date_str = _to_date_str(snapshot.date)
+        amount = float(snapshot.amount)
+        total = (
+            None
+            if snapshot.total_portfolio_amount is None
+            else float(snapshot.total_portfolio_amount)
+        )
+
+        conn.execute(
+            """
+            INSERT INTO cash(date, amount, total_portfolio_amount)
+            VALUES (?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                amount = excluded.amount,
+                total_portfolio_amount = excluded.total_portfolio_amount
+            """,
+            (date_str, amount, total),
+        )
+        conn.commit()
+    finally:
+        conn.close()
