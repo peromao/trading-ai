@@ -1,5 +1,6 @@
 import argparse
 from typing import Iterable, List, Optional, Sequence
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -200,15 +201,15 @@ def sunday_processing():
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
     weekly_research = get_latest_weekly_research()
-    latest_orders = get_latest_orders()
-    print(f"[weekday_processing] Latest cash: {latest_cash.get('amount')}")
+    weekly_orders = get_latest_orders(start_date=date.today() - timedelta(days=7))
+    print(f"[sunday_processing] Latest cash: {latest_cash.get('amount')}")
     print(
-        f"[weekday_processing] Weekly research date: {weekly_research.get('date_str','')}, chars: {len(weekly_research.get('text',''))}"
+        f"[sunday_processing] Weekly research date: {weekly_research.get('date_str','')}, chars: {len(weekly_research.get('text',''))}"
     )
     print(
-        f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}"
+        f"[sunday_processing] Weekly orders rows: {0 if weekly_orders is None else len(weekly_orders)}"
     )
-    print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
+    print(f"[sunday_processing] Loaded positions rows: {len(positions_df)}")
 
     return
 

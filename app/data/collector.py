@@ -1,7 +1,7 @@
 import pandas as pd
 import re
 from typing import List, Dict, Any, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from data.db import bootstrap_db, df_from_query
 from portfolio_manager import Portfolio, PortfolioPosition
@@ -89,17 +89,46 @@ def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFram
     return df
 
 
-def get_latest_orders(orders_path: str = "data/orders.csv") -> pd.DataFrame:
-    """Return all order rows from the latest date in SQLite."""
+def get_latest_orders(start_date: Optional[Any] = None, orders_path: str = "data/orders.csv") -> pd.DataFrame:
+    """Return order rows for yesterday or orders on/after a given date.
+
+    Args:
+        start_date: Optional date (str/datetime). If provided, returns all rows
+            with `date` >= start_date. If omitted, returns rows for yesterday's
+            calendar date.
+        orders_path: Unused CSV fallback kept for compatibility.
+    """
     bootstrap_db()
-    df = df_from_query(
-        """
-        SELECT date, ticker, qty, price
-        FROM orders
-        WHERE date = (SELECT MAX(date) FROM orders)
-        ORDER BY rowid
-        """
-    )
+    query: str
+    params: List[Any] = []
+
+    if start_date is None:
+        target_date = (datetime.now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
+        query = (
+            """
+            SELECT date, ticker, qty, price
+            FROM orders
+            WHERE date = ?
+            ORDER BY rowid
+            """
+        )
+        params = [target_date]
+    else:
+        start_dt = pd.to_datetime(start_date, errors="coerce")
+        if pd.isna(start_dt):
+            return pd.DataFrame(columns=["date", "ticker", "qty", "price"])
+        start_str = start_dt.strftime("%Y-%m-%d")
+        query = (
+            """
+            SELECT date, ticker, qty, price
+            FROM orders
+            WHERE date >= ?
+            ORDER BY date, rowid
+            """
+        )
+        params = [start_str]
+
+    df = df_from_query(query, params=params)
     if df.empty:
         return df
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
