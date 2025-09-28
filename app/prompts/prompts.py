@@ -128,6 +128,124 @@ class Prompts:
         return prompt
 
     @staticmethod
+    def weekend_ai_prompt(
+        *,
+        positions_df,  # pandas.DataFrame
+        latest_cash: Dict[str, Any],
+        latest_orders,  # pandas.DataFrame | None
+        weekly_research: Dict[str, Any],
+        latest_prices_df=None,  # pandas.DataFrame | None
+    ) -> str:
+        """Build the weekend prompt using portfolio and research context.
+
+        Expects cleaned dataframes/objects from collector helpers.
+        """
+        # Positions summary
+        tickers: List[str] = []
+        if positions_df is not None and not positions_df.empty:
+            seen = set()
+            for t in positions_df.get("ticker", []).astype(str).tolist():
+                if t and t not in seen:
+                    seen.add(t)
+                    tickers.append(t)
+        tickers_str = ", ".join(tickers) if tickers else "(none)"
+
+        # Cash summary
+        cash_amt = latest_cash.get("amount") if latest_cash else None
+        total_amt = latest_cash.get("total_portfolio_amount") if latest_cash else None
+
+        # Latest orders summary + CSV
+        orders_rows = 0
+        orders_preview: str = ""
+        if latest_orders is not None and getattr(latest_orders, "empty", True) is False:
+            orders_rows = len(latest_orders)
+            try:
+                subset = latest_orders.head(3)
+                orders_preview = "; ".join(
+                    f"{str(r.get('date'))[:10]} {r.get('ticker')} x{r.get('qty')} @ {r.get('price')}"
+                    for _, r in subset.iterrows()
+                )
+            except Exception:
+                orders_preview = ""
+            try:
+                orders_csv = latest_orders.to_csv(index=False)
+            except Exception:
+                orders_csv = ""
+        else:
+            orders_csv = ""
+
+        # Weekly research (full text)
+        last_research_date = (weekly_research or {}).get("date_str", "")
+        last_research_text = (weekly_research or {}).get("text", "").strip()
+
+        # Positions CSV snapshot
+        try:
+            positions_csv = (
+                positions_df.to_csv(index=False) if positions_df is not None else ""
+            )
+        except Exception:
+            positions_csv = ""
+
+        # Latest market prices (daily close)
+        try:
+            have_prices = (
+                latest_prices_df is not None
+                and getattr(latest_prices_df, "empty", True) is False
+            )
+        except Exception:
+            have_prices = False
+        price_rows = 0
+        if have_prices:
+            price_rows = len(latest_prices_df)
+            try:
+                prices_csv = latest_prices_df.to_csv(index=False)
+            except Exception:
+                prices_csv = ""
+        else:
+            prices_csv = ""
+
+        prompt = (
+            "Você é um gestor estratégico de uma carteira de ações dos EUA.\n"
+            "Seu papel é criar uma teoria macro para ser seguida durante a semana, baseado nos dados recebidos sobre a carteira atual, execuções passadas, caixa disponível e acontecimentos da última semana no mundo, e decidir quais ações manter, vender ou comprar \n\n"
+            "Objetivo\n\n"
+            "- Maximizar o retorno acumulado em 5 anos.\n"
+            "- Criar uma estratégia macro para ser seguida na próxima semana.\n"
+            "- Escolher como e se mudar a carteira atual\n"
+            "- Analisar se houve mudanças consideráveis da última teoria e se é necessário mudar algo na carteira ou teoria.\n\n"
+            "Insumos recebidos hoje (dados reais)\n\n"
+            f"- Universo de tickers nas posições: {tickers_str}\n"
+            f"- Caixa: amount={cash_amt}, total_portfolio_amount={total_amt}\n"
+            f"- Ordens da semana (linhas: {orders_rows}; prévia: {orders_preview})\n"
+            f"- Dados de preços de fechamento de hoje (linhas: {price_rows}) listados em latest_prices\n"
+            "\n--- positions (CSV) ---\n"
+            f"{positions_csv}\n"
+            "--- latest_prices (CSV; fechamento oficial do dia) ---\n"
+            f"{prices_csv}\n"
+            "--- latest_orders (CSV; última data) ---\n"
+            f"{orders_csv}\n"
+            f"--- weekly_research ({last_research_date}) ---\n"
+            f"{last_research_text}\n\n"
+            "Restrições (sempre respeitar)\n\n"
+            "- Sem alavancagem.\n"
+            "- Sem derivativos.\n"
+            "- Considerar custos de transação simbólicos a cada trade.\n"
+            "- Não concentrar >25% do portfólio em um único ativo.\n"
+            "- Manter pelo menos 10% do portfólio em caixa.\n"
+            "- Rebalancear quando necessário.\n"
+            "- Não é obrigatório agir todos os dias.\n\n"
+            "Como responder\n\n"
+            "- Resumo semanal (1–2 parágrafos): análise da semana, impacto dos preços nas posições, riscos e aderência à teoria macro.\n"
+            "- Nova teoria: Criação da teoria macro para a próxima semana\n"
+            "- Decisão tática: Manter (sem novas ordens) OU Comprar/Vender (listar ordens com ticker, quantidade, preço-alvo aproximado).\n"
+            "- Justificativa: por que essas ordens ou inação fazem sentido, considerando teoria macro e restrições.\n\n"
+            "Importante\n\n"
+            "- Se não houver oportunidades claras, afirme: 'Hoje não há trades recomendados.'\n"
+            "- Se houver necessidade de ajuste (ex.: concentração alta, caixa abaixo do limite, posição desalinhada da macro), proponha rebalanceamento.\n"
+            "- Sempre referenciar a coluna close de latest_prices para justificar preços de entrada/saída.\n"
+        )
+        return prompt
+
+    @staticmethod
     def quick_test_prompt() -> str:
         """Simple fallback/test prompt."""
         return "Say hello and confirm you received the context."
