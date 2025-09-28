@@ -58,7 +58,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     prompt = " ".join(args.prompt)
-    text = send_prompt(prompt, system=args.system, model=args.model)
+    text = send_prompt(prompt, model=args.model)
     print(text)
 
 

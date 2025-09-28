@@ -99,7 +99,7 @@ def weekday_processing():
     latest_cash = get_latest_cash()
     weekly_research = get_latest_weekly_research()
     latest_orders = get_latest_orders()
-    print(f"[weekday_processing] Latest cash: {latest_cash.get("amount")}")
+    print(f"[weekday_processing] Latest cash: {latest_cash.get('amount')}")
     print(
         f"[weekday_processing] Weekly research date: {weekly_research.get('date_str','')}, chars: {len(weekly_research.get('text',''))}"
     )
