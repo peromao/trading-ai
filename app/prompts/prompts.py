@@ -3,6 +3,16 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional
 
 
+def _df_to_text(df) -> str:
+    """Render a DataFrame-like object as a plain-text table."""
+    if df is None or getattr(df, "empty", True):
+        return ""
+    try:
+        return df.to_string(index=False)
+    except Exception:
+        return ""
+
+
 class Prompts:
     """Centralized prompt builder for AI requests.
 
@@ -36,7 +46,7 @@ class Prompts:
         cash_amt = latest_cash.get("amount") if latest_cash else None
         total_amt = latest_cash.get("total_portfolio_amount") if latest_cash else None
 
-        # Latest orders summary + CSV
+        # Latest orders summary
         orders_rows = 0
         orders_preview: str = ""
         if latest_orders is not None and getattr(latest_orders, "empty", True) is False:
@@ -49,24 +59,14 @@ class Prompts:
                 )
             except Exception:
                 orders_preview = ""
-            try:
-                orders_csv = latest_orders.to_csv(index=False)
-            except Exception:
-                orders_csv = ""
-        else:
-            orders_csv = ""
+        orders_block = _df_to_text(latest_orders) or "[sem ordens recentes]"
 
         # Weekly research (full text)
         research_date = (weekly_research or {}).get("date_str", "")
         research_text = (weekly_research or {}).get("text", "").strip()
 
-        # Positions CSV snapshot
-        try:
-            positions_csv = (
-                positions_df.to_csv(index=False) if positions_df is not None else ""
-            )
-        except Exception:
-            positions_csv = ""
+        # Positions snapshot
+        positions_block = _df_to_text(positions_df) or "[sem posições registradas]"
 
         # Latest market prices (daily close)
         try:
@@ -77,14 +77,10 @@ class Prompts:
         except Exception:
             have_prices = False
         price_rows = 0
+        prices_block = "[sem preços disponíveis]"
         if have_prices:
             price_rows = len(latest_prices_df)
-            try:
-                prices_csv = latest_prices_df.to_csv(index=False)
-            except Exception:
-                prices_csv = ""
-        else:
-            prices_csv = ""
+            prices_block = _df_to_text(latest_prices_df) or "[sem preços disponíveis]"
 
         prompt = (
             "Você é um gestor tático de uma carteira de ações dos EUA.\n"
@@ -99,12 +95,12 @@ class Prompts:
             f"- Caixa: amount={cash_amt}, total_portfolio_amount={total_amt}\n"
             f"- Ordens mais recentes (linhas: {orders_rows}; prévia: {orders_preview})\n"
             f"- Dados de preços de fechamento de hoje (linhas: {price_rows}) listados em latest_prices\n"
-            "\n--- positions (CSV) ---\n"
-            f"{positions_csv}\n"
-            "--- latest_prices (CSV; fechamento oficial do dia) ---\n"
-            f"{prices_csv}\n"
-            "--- latest_orders (CSV; última data) ---\n"
-            f"{orders_csv}\n"
+            "\n--- positions snapshot ---\n"
+            f"{positions_block}\n"
+            "--- latest_prices (fechamento oficial do dia) ---\n"
+            f"{prices_block}\n"
+            "--- latest_orders (última data) ---\n"
+            f"{orders_block}\n"
             f"--- weekly_research ({research_date}) ---\n"
             f"{research_text}\n\n"
             "Restrições (sempre respeitar)\n\n"
@@ -154,7 +150,7 @@ class Prompts:
         cash_amt = latest_cash.get("amount") if latest_cash else None
         total_amt = latest_cash.get("total_portfolio_amount") if latest_cash else None
 
-        # Latest orders summary + CSV
+        # Latest orders summary
         orders_rows = 0
         orders_preview: str = ""
         if latest_orders is not None and getattr(latest_orders, "empty", True) is False:
@@ -167,24 +163,14 @@ class Prompts:
                 )
             except Exception:
                 orders_preview = ""
-            try:
-                orders_csv = latest_orders.to_csv(index=False)
-            except Exception:
-                orders_csv = ""
-        else:
-            orders_csv = ""
+        orders_block = _df_to_text(latest_orders) or "[sem ordens recentes]"
 
         # Weekly research (full text)
         last_research_date = (weekly_research or {}).get("date_str", "")
         last_research_text = (weekly_research or {}).get("text", "").strip()
 
-        # Positions CSV snapshot
-        try:
-            positions_csv = (
-                positions_df.to_csv(index=False) if positions_df is not None else ""
-            )
-        except Exception:
-            positions_csv = ""
+        # Positions snapshot
+        positions_block = _df_to_text(positions_df) or "[sem posições registradas]"
 
         # Latest market prices (daily close)
         try:
@@ -195,14 +181,10 @@ class Prompts:
         except Exception:
             have_prices = False
         price_rows = 0
+        prices_block = "[sem preços disponíveis]"
         if have_prices:
             price_rows = len(latest_prices_df)
-            try:
-                prices_csv = latest_prices_df.to_csv(index=False)
-            except Exception:
-                prices_csv = ""
-        else:
-            prices_csv = ""
+            prices_block = _df_to_text(latest_prices_df) or "[sem preços disponíveis]"
 
         prompt = (
             "Você é um gestor estratégico de uma carteira de ações dos EUA.\n"
@@ -217,12 +199,12 @@ class Prompts:
             f"- Caixa: amount={cash_amt}, total_portfolio_amount={total_amt}\n"
             f"- Ordens da semana (linhas: {orders_rows}; prévia: {orders_preview})\n"
             f"- Dados de preços de fechamento de hoje (linhas: {price_rows}) listados em latest_prices\n"
-            "\n--- positions (CSV) ---\n"
-            f"{positions_csv}\n"
-            "--- latest_prices (CSV; fechamento oficial do dia) ---\n"
-            f"{prices_csv}\n"
-            "--- latest_orders (CSV; última data) ---\n"
-            f"{orders_csv}\n"
+            "\n--- positions snapshot ---\n"
+            f"{positions_block}\n"
+            "--- latest_prices (fechamento oficial do dia) ---\n"
+            f"{prices_block}\n"
+            "--- latest_orders (última data) ---\n"
+            f"{orders_block}\n"
             f"--- weekly_research ({last_research_date}) ---\n"
             f"{last_research_text}\n\n"
             "Restrições (sempre respeitar)\n\n"

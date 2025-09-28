@@ -1,5 +1,4 @@
 import math
-import os
 from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
@@ -7,13 +6,6 @@ from data.db import bootstrap_db, get_connection
 
 from openai_integration import Order
 from portfolio_manager import Portfolio, CashSnapshot
-
-
-def _ensure_dir(path: str):
-    d = os.path.dirname(os.path.abspath(path))
-    if d and not os.path.exists(d):
-        os.makedirs(d, exist_ok=True)
-
 
 def _to_date_str(ts) -> str:
     ts = pd.to_datetime(ts)
@@ -24,7 +16,6 @@ def _to_date_str(ts) -> str:
 def insert_latest_daily_data(
     daily_data: Sequence[pd.DataFrame],
     tickers: Sequence[str],
-    out_csv: str = "data/stocks_info.csv",
 ):
     """Insert the most recent daily row per ticker into SQLite (stocks_info).
 
@@ -33,12 +24,11 @@ def insert_latest_daily_data(
                   in the same order as `tickers`. Each DataFrame should
                   include columns: Open, High, Low, Close, Volume, Dividends, Stock Splits.
     - tickers: sequence of ticker symbols corresponding to each DataFrame.
-    - out_csv: deprecated (no longer used; kept for backward-compat)
 
     Behavior
     - Extracts the most recent row from each DataFrame.
     - Normalizes the date to yyyy-mm-dd.
-    - Appends to `out_csv`, upserting on (date, ticker) to avoid duplicates.
+    - Upserts rows into SQLite `stocks_info` keyed by (date, ticker).
     """
     if len(daily_data) != len(tickers):
         raise ValueError("daily_data and tickers must have the same length")

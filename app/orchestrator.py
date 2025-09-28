@@ -91,7 +91,7 @@ def weekday_processing():
         insert_cash_snapshot,
     )
 
-    inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
+    inserted = insert_latest_daily_data(data, tickers)
     print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
     latest_prices_df = build_latest_prices_df(data, tickers)
@@ -193,7 +193,7 @@ def sunday_processing():
     # Persist the most recent daily row per ticker
     from data.inserter import insert_latest_daily_data
 
-    inserted = insert_latest_daily_data(data, tickers, out_csv="data/stocks_info.csv")
+    inserted = insert_latest_daily_data(data, tickers)
     print(f"[sunday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
     latest_prices_df = build_latest_prices_df(data, tickers)

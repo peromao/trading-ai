@@ -19,14 +19,14 @@ def get_stock_data(stocksTickers: List[str]):
 
 
 def _clean_ticker(t: str) -> str:
-    # Remove stray quotes and whitespace from CSV values
+    # Normalize tickers coming from external data sources
     return t.strip().strip('"').strip("'")
 
 
 ## Removed: get_portfolio_tickers. Use get_all_positions() and filter by latest date in orchestrator.
 
 
-def get_latest_cash(cash_path: str = "data/cash.csv") -> Dict[str, Any]:
+def get_latest_cash() -> Dict[str, Any]:
     """Return the latest cash information from SQLite.
 
     Returns a dict with keys: `date`, `amount`, `total_portfolio_amount`.
@@ -78,7 +78,7 @@ def get_latest_cash_before(as_of) -> Dict[str, Any]:
     }
 
 
-def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFrame:
+def get_all_positions() -> pd.DataFrame:
     """Load and return the full positions dataset from SQLite."""
     bootstrap_db()
     df = df_from_query("SELECT date, ticker, qty, avg_price FROM positions")
@@ -89,14 +89,13 @@ def get_all_positions(positions_path: str = "data/positions.csv") -> pd.DataFram
     return df
 
 
-def get_latest_orders(start_date: Optional[Any] = None, orders_path: str = "data/orders.csv") -> pd.DataFrame:
+def get_latest_orders(start_date: Optional[Any] = None) -> pd.DataFrame:
     """Return order rows for yesterday or orders on/after a given date.
 
     Args:
         start_date: Optional date (str/datetime). If provided, returns all rows
             with `date` >= start_date. If omitted, returns rows for yesterday's
             calendar date.
-        orders_path: Unused CSV fallback kept for compatibility.
     """
     bootstrap_db()
     query: str

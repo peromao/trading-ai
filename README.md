@@ -55,13 +55,11 @@ If you need additional libraries, add them with `pip install <package>` and then
     - `positions(date, ticker, qty, avg_price, UNIQUE(date, ticker))`
     - `orders(id INTEGER PRIMARY KEY AUTOINCREMENT, date, ticker, qty, price)`
     - `stocks_info(date, ticker, open, high, low, close, volume, dividends, stock_splits, PRIMARY KEY(date, ticker))`
-- One-time bootstrap migration from CSVs: on first run, if tables are empty and CSVs exist, they are imported automatically from:
-  - `data/positions.csv`, `data/cash.csv`, `data/orders.csv`, `data/stocks_info.csv`.
 - `ai_weekly_research.md` (weekly strategy)
   - Markdown with dated headers like `# YYYY-MM-DD`. The most recent dated section is parsed and used as strategic guidance.
 
 **Run the orchestrator (weekday)**
-- Populate the CSVs and `.env` as above.
+- Ensure the SQLite tables contain your starting data and `.env` is configured.
 - Run once:
   - `python app/orchestrator.py --run weekday`
   - or: `python -m app.orchestrator --run weekday`
@@ -89,13 +87,13 @@ When you’re done, deactivate the virtual environment:
 - `deactivate`
 
 Project structure highlights
-- `app/data/db.py`: SQLite helpers (connection, schema init, CSV bootstrap migration, query helper).
+- `app/data/db.py`: SQLite helpers (connection, schema init, query helper).
 - `app/data/collector.py`
   - `get_all_positions()`: loads and cleans positions (from SQLite).
   - `get_latest_cash()`: reads the latest cash row (from SQLite).
   - `get_latest_orders()`: returns all rows from the latest date in SQLite `orders`.
   - `get_latest_weekly_research()`: parses the latest dated section from the weekly research Markdown.
 - `app/data/inserter.py`: upserts the latest daily market row per ticker into SQLite `stocks_info`.
-- `app/prompts/prompts.py`: `Prompts.daily_ai_prompt(...)` builds the daily prompt (includes CSV text snapshots derived from DataFrames for readability).
+- `app/prompts/prompts.py`: `Prompts.daily_ai_prompt(...)` builds the daily prompt (includes plain-text table snapshots derived from DataFrames for readability).
 - `app/openai_integration.py`: minimal wrapper over the OpenAI Agents SDK `responses.create(...)` API.
 - `app/orchestrator.py`: coordinates the weekday/sunday flows and calls the AI.

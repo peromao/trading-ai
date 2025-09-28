@@ -7,7 +7,7 @@ This document describes how tr(AI)ding's agents work, what context they receive,
 - **Daily (weekday) agent**: Runs after market close, evaluates current portfolio data, and decides whether to trade. Prompt built in `app/prompts/prompts.py`.
 - **Scheduler**: `app/schedule_runner.py` triggers `weekday_processing` or `sunday_processing` from `app/orchestrator.py` according to `WEEKDAY_AT` and `SUNDAY_AT` environment variables.
 
-Both agents rely on portfolio data stored in SQLite (`db.sqlite3`) and mirrored CSV files in `data/`. `app/data/collector.py` gathers the latest snapshots, while `app/data/inserter.py` keeps `stocks_info` updated with fresh market data.
+Both agents rely on portfolio data stored in SQLite (`db.sqlite3`). `app/data/collector.py` gathers the latest snapshots, while `app/data/inserter.py` keeps `stocks_info` updated with fresh market data.
 
 ## Data Inputs Provided to Agents
 Weekday processing (`app/orchestrator.py:weekday_processing`) prepares the following payload for the prompt builder:
@@ -26,7 +26,7 @@ The Sunday routine (`sunday_processing`) loads positions and writes market price
 `Prompts.daily_ai_prompt(...)` builds the weekday agent instructions. Key sections:
 
 1. **Role & Objective**: Defines the agent as a tactical portfolio manager, lists strategic goals, and reinforces alignment with the Sunday theory.
-2. **Daily Inputs**: Enumerates tickers, cash snapshot, summary of the latest orders, and embeds CSV exports of positions and same-day orders.
+2. **Daily Inputs**: Enumerates tickers, cash snapshot, summary of the latest orders, and embeds plain-text tables of positions and same-day orders.
 3. **Weekly Research Context**: Injects the full text of the most recent macro thesis.
 4. **Constraints**: Hard rules (no leverage/derivatives, 25% max position, ≥10% cash, etc.) the agent must obey.
 5. **Response Format**: Requires a daily summary, explicit action decision (maintain vs. trades), and justification.
@@ -38,7 +38,7 @@ The Sunday routine (`sunday_processing`) loads positions and writes market price
 - **Ticker universe**: Derived from unique tickers in positions; duplicates are removed.
 - **Cash totals**: Provided as raw numbers. If unavailable, they may be `None`; prompts still render the keys.
 - **Orders preview**: Up to 3 latest orders joined in a single line for quick reference.
-- **Embedded CSVs**: Multi-line blocks injected directly into the prompt; ensure downstream models can handle the volume.
+- **Embedded tables**: Multi-line blocks injected directly into the prompt; ensure downstream models can handle the volume.
 - **Weekly research date + text**: Inserted verbatim. Keep `ai_weekly_research.md` concise and clean to avoid prompt bloat.
 
 When modifying prompt wording, prefer editing `Prompts.daily_ai_prompt` so all calling sites inherit the change.
@@ -57,7 +57,7 @@ Configuration notes:
 ## Extending or Adding Agents
 1. **Create prompt builder**: Add a new `@staticmethod` in `Prompts` with clear sections, constraints, and response expectations.
 2. **Update orchestrator**: Call the new builder from `weekday_processing`/`sunday_processing` or a new function, wiring in required data collectors.
-3. **Persist context**: If additional data is required (e.g., risk metrics), extend `collector.py` and ensure the database / CSV bootstrap covers it.
+3. **Persist context**: If additional data is required (e.g., risk metrics), extend `collector.py` and ensure the database schema and sync routines cover it.
 4. **Document response contract**: Update this file and any runbooks so human reviewers understand what to expect from model outputs.
 5. **Testing**: Use `Prompts.quick_test_prompt()` or craft a smaller sandbox prompt to validate SDK integration before deploying full prompts.
 
@@ -68,8 +68,8 @@ Configuration notes:
 
 ## Troubleshooting Checklist
 - **Missing API key**: `send_prompt` raises `RuntimeError`. Verify `.env`.
-- **Empty datasets**: If positions/cash/orders are empty, prompts still render but agents may lack context. Check SQLite tables or CSV bootstraps.
-- **Prompt too long**: Review positions/orders CSV size. Consider summarizing or truncating before embedding.
+- **Empty datasets**: If positions/cash/orders are empty, prompts still render but agents may lack context. Check the corresponding SQLite tables and upstream data collectors.
+- **Prompt too long**: Review positions/orders table size. Consider summarizing or truncating before embedding.
 - **Scheduler drift**: Confirm server timezone and `WEEKDAY_AT`/`SUNDAY_AT`. Adjust in environment.
 
 Use this guide when onboarding new models or iterating on prompt strategy to keep the AI layer consistent and reliable.
