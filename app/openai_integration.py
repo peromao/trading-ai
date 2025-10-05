@@ -3,6 +3,7 @@ import json
 import os
 import re
 from typing import Optional
+from datetime import datetime
 
 from agents import Agent, Runner, WebSearchTool
 from agents.models import _openai_shared as _agents_openai_shared
@@ -115,23 +116,11 @@ async def deep_research_async(
     stream = Runner.run_streamed(agent, prompt)
 
     async for ev in stream.stream_events():
-        if getattr(ev, "type", None) == "run_item_stream_event":
-            if getattr(ev, "name", None) == "tool_called":
-                item = getattr(ev, "item", None)
-                raw = getattr(item, "raw_item", None)
-                if raw is not None and getattr(raw, "type", None) == "web_search_call":
-                    action = getattr(raw, "action", None)
-                    atype = getattr(action, "type", None)
-                    if atype == "search":
-                        print(f"[Web search] query={getattr(action, 'query', None)!r}")
-                    elif atype == "open_page":
-                        print(f"[Open page] url={getattr(action, 'url', None)}")
-                    elif atype == "find":
-                        print(
-                            f"[Find] pattern={getattr(action, 'pattern', None)!r} in url={getattr(action, 'url', None)}"
-                        )
+        print(f"\033[94m{datetime.now()} \033[0m {ev.type}")
 
     result = stream.final_output
+
+    print(result)
 
     raw_text = result if isinstance(result, str) else str(result)
     return _parse_weekly_research(raw_text)

@@ -224,7 +224,30 @@ async def sunday_processing():
     )
 
     new_weekly_research = await deep_research_async(prompt)
-    print(new_weekly_research)
+
+    # Append the new weekly research to the markdown log with today's date header
+    try:
+        research_text = getattr(new_weekly_research, "research", "") or ""
+        if research_text.strip():
+            today_str = date.today().strftime("%Y-%m-%d")
+            header_line = f"# {today_str}\n"
+            # Ensure a clean separation from previous content and append section
+            with open("ai_weekly_research.md", "a", encoding="utf-8") as f:
+                f.write("\n" if not research_text.startswith("\n") else "")
+                f.write(header_line)
+                f.write("\n")
+                f.write(research_text.rstrip())
+                f.write("\n")
+            print(
+                f"[sunday_processing] Appended weekly research to ai_weekly_research.md with header {today_str}"
+            )
+        else:
+            print(
+                "[sunday_processing] No research text returned; skipping markdown update"
+            )
+    except Exception as e:
+        print(f"[sunday_processing] Failed to append weekly research: {e}")
+        return
 
     return
 
