@@ -3,8 +3,6 @@ import asyncio
 import os
 import sys
 from datetime import date, timedelta
-from typing import Iterable, List, Optional, Sequence
-
 import pandas as pd
 
 if (
@@ -19,11 +17,9 @@ from app.data.collector import (
     get_latest_orders,
     get_latest_weekly_research,
     get_portfolio,
-    get_stock_data,
 )
 from app.data.inserter import (
     insert_cash_snapshot,
-    insert_latest_daily_data,
     insert_new_order,
     sync_positions_with_portfolio,
 )
@@ -33,53 +29,8 @@ from app.portfolio_manager import (
     apply_orders,
     compute_cash_after_orders,
 )
+from app.services.context_builder import build_market_context
 from app.prompts.prompts import Prompts
-
-
-def build_latest_prices_df(
-    price_frames: Sequence[Optional[pd.DataFrame]],
-    tickers: Iterable[str],
-) -> pd.DataFrame:
-    """Return a dataframe containing the latest OHLCV row for each ticker."""
-
-    latest_price_rows = []
-    for tkr, df in zip(tickers, price_frames):
-        if df is None or getattr(df, "empty", True):
-            continue
-        try:
-            last_idx = df.index[-1]
-            row = df.iloc[-1]
-        except Exception:
-            continue
-
-        ts = pd.Timestamp(last_idx)
-        try:
-            date_str = ts.date().isoformat()
-        except Exception:
-            date_str = str(ts)
-
-        def _safe_float(val):
-            return None if val is None or pd.isna(val) else float(val)
-
-        volume_val = row.get("Volume")
-        if volume_val is None or pd.isna(volume_val):
-            volume = None
-        else:
-            volume = int(volume_val)
-
-        latest_price_rows.append(
-            {
-                "date": date_str,
-                "ticker": str(tkr).strip(),
-                "open": _safe_float(row.get("Open")),
-                "high": _safe_float(row.get("High")),
-                "low": _safe_float(row.get("Low")),
-                "close": _safe_float(row.get("Close")),
-                "volume": volume,
-            }
-        )
-
-    return pd.DataFrame(latest_price_rows) if latest_price_rows else pd.DataFrame()
 
 
 def weekday_processing():
@@ -89,23 +40,15 @@ def weekday_processing():
     Calls the data collector and returns the fetched data.
     """
     positions_df = get_all_positions()
-    tickers: List[str] = []
-    if not positions_df.empty:
-        seen = set()
-        for t in positions_df.get("ticker", []).astype(str).tolist():
-            if t and t not in seen:
-                seen.add(t)
-                tickers.append(t)
-    if not tickers:
-        tickers = ["AAPL", "MSFT", "GOOGL"]
-    print(f"[weekday_processing] Fetching data for (latest positions): {tickers}")
-    data = get_stock_data(tickers)
-    print("[weekday_processing] Fetch complete; inserting into sqlite: stocks_info")
-    # Persist the most recent daily row per ticker
-    inserted = insert_latest_daily_data(data, tickers)
-    print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
+    print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
-    latest_prices_df = build_latest_prices_df(data, tickers)
+    market_ctx = build_market_context(positions_df)
+    print(f"[weekday_processing] Fetched market data for tickers: {market_ctx.tickers}")
+    print(
+        f"[weekday_processing] Upserted {market_ctx.inserted_rows} rows into stocks_info (sqlite)"
+    )
+
+    latest_prices_df = market_ctx.latest_prices_df
 
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
@@ -118,7 +61,6 @@ def weekday_processing():
     print(
         f"[weekday_processing] Latest orders rows: {0 if latest_orders is None else len(latest_orders)}"
     )
-    print(f"[weekday_processing] Loaded positions rows: {len(positions_df)}")
 
     # Build and send the daily AI prompt
     prompt_text = Prompts.daily_ai_prompt(
@@ -174,23 +116,15 @@ async def sunday_processing():
     Calls the data collector and returns the fetched data.
     """
     positions_df = get_all_positions()
-    tickers: List[str] = []
-    if not positions_df.empty:
-        seen = set()
-        for t in positions_df.get("ticker", []).astype(str).tolist():
-            if t and t not in seen:
-                seen.add(t)
-                tickers.append(t)
-    if not tickers:
-        tickers = ["AAPL", "MSFT", "GOOGL"]
-    print(f"[sunday_processing] Fetching data for (latest positions): {tickers}")
-    data = get_stock_data(tickers)
-    print("[sunday_processing] Fetch complete; inserting into sqlite: stocks_info")
-    # Persist the most recent daily row per ticker
-    inserted = insert_latest_daily_data(data, tickers)
-    print(f"[sunday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
+    print(f"[sunday_processing] Loaded positions rows: {len(positions_df)}")
 
-    latest_prices_df = build_latest_prices_df(data, tickers)
+    market_ctx = build_market_context(positions_df)
+    print(f"[sunday_processing] Fetched market data for tickers: {market_ctx.tickers}")
+    print(
+        f"[sunday_processing] Upserted {market_ctx.inserted_rows} rows into stocks_info (sqlite)"
+    )
+
+    latest_prices_df = market_ctx.latest_prices_df
 
     # Fetch latest cash info and all positions before sending the prompt
     latest_cash = get_latest_cash()
@@ -203,7 +137,6 @@ async def sunday_processing():
     print(
         f"[sunday_processing] Weekly orders rows: {0 if weekly_orders is None else len(weekly_orders)}"
     )
-    print(f"[sunday_processing] Loaded positions rows: {len(positions_df)}")
 
     prompt = Prompts.weekend_ai_prompt(
         positions_df=positions_df,
