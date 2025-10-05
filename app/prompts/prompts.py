@@ -128,9 +128,9 @@ class Prompts:
         *,
         positions_df,  # pandas.DataFrame
         latest_cash: Dict[str, Any],
-        latest_orders,  # pandas.DataFrame | None
+        weekly_orders,  # pandas.DataFrame | None
         weekly_research: Dict[str, Any],
-        latest_prices_df=None,  # pandas.DataFrame | None
+        latest_prices_df=None,  # pandas.DataFrame | None,
     ) -> str:
         """Build the weekend prompt using portfolio and research context.
 
@@ -153,17 +153,17 @@ class Prompts:
         # Latest orders summary
         orders_rows = 0
         orders_preview: str = ""
-        if latest_orders is not None and getattr(latest_orders, "empty", True) is False:
-            orders_rows = len(latest_orders)
+        if weekly_orders is not None and getattr(weekly_orders, "empty", True) is False:
+            orders_rows = len(weekly_orders)
             try:
-                subset = latest_orders.head(3)
+                subset = weekly_orders.head(3)
                 orders_preview = "; ".join(
                     f"{str(r.get('date'))[:10]} {r.get('ticker')} x{r.get('qty')} @ {r.get('price')}"
                     for _, r in subset.iterrows()
                 )
             except Exception:
                 orders_preview = ""
-        orders_block = _df_to_text(latest_orders) or "[sem ordens recentes]"
+        orders_block = _df_to_text(weekly_orders) or "[sem ordens recentes]"
 
         # Weekly research (full text)
         last_research_date = (weekly_research or {}).get("date_str", "")
@@ -216,10 +216,8 @@ class Prompts:
             "- Rebalancear quando necessário.\n"
             "- Não é obrigatório agir todos os dias.\n\n"
             "Como responder\n\n"
-            "- Resumo semanal (1–2 parágrafos): análise da semana, impacto dos preços nas posições, riscos e aderência à teoria macro.\n"
-            "- Nova teoria: Criação da teoria macro para a próxima semana\n"
-            "- Decisão tática: Manter (sem novas ordens) OU Comprar/Vender (listar ordens com ticker, quantidade, preço-alvo aproximado).\n"
-            "- Justificativa: por que essas ordens ou inação fazem sentido, considerando teoria macro e restrições.\n\n"
+            "- research: Criação da teoria macro para a próxima semana\n"
+            "- orders: Manter (sem novas ordens) OU Comprar/Vender (listar ordens com ticker, quantidade, preço-alvo aproximado).\n"
             "Importante\n\n"
             "- Se não houver oportunidades claras, afirme: 'Hoje não há trades recomendados.'\n"
             "- Se houver necessidade de ajuste (ex.: concentração alta, caixa abaixo do limite, posição desalinhada da macro), proponha rebalanceamento.\n"

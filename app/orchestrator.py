@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 from typing import Iterable, List, Optional, Sequence
 from datetime import date, timedelta
 
@@ -162,7 +163,7 @@ def weekday_processing():
     return
 
 
-def sunday_processing():
+async def sunday_processing():
     """Processing routine for Sunday.
 
     Reads tickers from env var `SUNDAY_TICKERS` or falls back to `TICKERS`/default.
@@ -176,6 +177,9 @@ def sunday_processing():
         get_latest_weekly_research,
         get_latest_orders,
     )
+
+    from openai_integration import deep_research_async
+    from prompts.prompts import Prompts
 
     positions_df = get_all_positions()
     tickers: List[str] = []
@@ -211,6 +215,17 @@ def sunday_processing():
     )
     print(f"[sunday_processing] Loaded positions rows: {len(positions_df)}")
 
+    prompt = Prompts.weekend_ai_prompt(
+        positions_df=positions_df,
+        latest_cash=latest_cash,
+        weekly_orders=weekly_orders,
+        latest_prices_df=latest_prices_df,
+        weekly_research=weekly_research,
+    )
+
+    new_weekly_research = await deep_research_async(prompt)
+    print(new_weekly_research)
+
     return
 
 
@@ -233,7 +248,7 @@ def main(argv=None):
     if args.run == "weekday":
         weekday_processing()
     else:
-        sunday_processing()
+        asyncio.run(sunday_processing())
 
 
 if __name__ == "__main__":
