@@ -31,6 +31,8 @@ Language note: The prompt instructions are in Portuguese (pt‑BR). Change `app/
   - `inserter.py`: upserts market data; inserts orders; syncs positions; writes cash snapshots.
 - Domain (`app/portfolio_manager.py`)
   - Minimal portfolio model; order application and cash arithmetic.
+- Domain Models (`app/domain/models.py`)
+  - Pydantic models shared across the app: `Order`, `AiDecision`, `WeeklyResearch`.
 
 Design style: “clean‑ish” layering
 - Prompt wording is isolated from IO; IO is isolated from domain mutations.
@@ -113,6 +115,7 @@ Project layout highlights
 - `app/openai_integration.py`: Agents SDK glue; daily and weekly runners
 - `app/orchestrator.py`: end‑to‑end flows
 - `app/portfolio_manager.py`: domain helpers to apply orders and compute cash
+- `app/domain/models.py`: Pydantic models `Order`, `AiDecision`, `WeeklyResearch`
 
 Style & conventions
 - Keep prompt text centralized in `Prompts`. Avoid duplicating strings elsewhere.
@@ -121,6 +124,8 @@ Style & conventions
   - `AiDecision { daily_summary:str, orders:list[Order], explanation:str }`
   - `Order { ticker:str, qty:int, price:float>=0 }`
   - `WeeklyResearch { research:str, orders:list[Order] }`
+ - Import models from `app.domain.models` (or via re-export `app.domain`). Example:
+   - `from app.domain.models import Order, AiDecision, WeeklyResearch`
 
 Seeding the database (example)
 ```sql

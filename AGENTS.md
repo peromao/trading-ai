@@ -19,7 +19,9 @@ Both agents operate over portfolio data stored in SQLite (`db.sqlite3`). `app/da
   - `db.py` bootstraps schema and provides a small query helper.
   - `collector.py` reads from SQLite and external sources (yfinance).
   - `inserter.py` performs all upserts and synchronization.
-- Domain (`app/portfolio_manager.py`): In‑memory portfolio model and apply/compute helpers used after AI returns orders.
+- Domain (`app/portfolio_manager.py`, `app/domain/models.py`):
+  - In‑memory portfolio model and apply/compute helpers used after AI returns orders.
+  - Pydantic domain models `Order`, `AiDecision`, `WeeklyResearch` shared across the app.
 
 Guiding principles
 - Separation of concerns: prompt text is isolated from IO; IO is isolated from domain updates.
@@ -90,6 +92,7 @@ Scheduling
 ## Conventions For Coding Agents (you)
 - Keep changes minimal and scoped. Do not reformat unrelated files.
 - Preserve public function signatures and Pydantic models (`AiDecision`, `WeeklyResearch`, `Order`).
+- Domain models live in `app/domain/models.py`. Import them as `from app.domain.models import Order, AiDecision, WeeklyResearch` (or via the re-export: `from app.domain import Order, AiDecision, WeeklyResearch`).
 - Prompt text belongs in `app/prompts/prompts.py`. Avoid scattering prompt strings elsewhere.
 - Prefer pure helpers for transformations; keep side effects within orchestrator or `inserter`.
 - SQLite writes should be idempotent and rely on primary keys/unique constraints already defined in `app/data/db.py`.
