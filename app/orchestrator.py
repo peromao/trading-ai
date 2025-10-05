@@ -5,6 +5,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 
+from app.data.collector import get_latest_cash_before, get_portfolio
+from app.data.inserter import insert_cash_snapshot, sync_positions_with_portfolio
+
 
 def build_latest_prices_df(
     price_frames: Sequence[Optional[pd.DataFrame]],
@@ -248,6 +251,37 @@ async def sunday_processing():
     except Exception as e:
         print(f"[sunday_processing] Failed to append weekly research: {e}")
         return
+
+    from portfolio_manager import (
+        apply_orders,
+        compute_cash_after_orders,
+        CashSnapshot,
+    )
+
+    current_portfolio = get_portfolio()
+
+    orders = new_weekly_research.orders
+
+    new_portfolio = apply_orders(current_portfolio, orders)
+
+    sync_positions_with_portfolio(new_portfolio)
+
+    as_of_date = pd.Timestamp.utcnow().date()
+    prior_cash = get_latest_cash_before(as_of_date)
+    prev_amount = prior_cash.get("amount") if prior_cash else None
+    prev_cash_val = (
+        0.0 if prev_amount is None or pd.isna(prev_amount) else float(prev_amount)
+    )
+
+    new_cash_val = compute_cash_after_orders(prev_cash_val, orders)
+
+    snapshot = CashSnapshot(
+        date=as_of_date, amount=new_cash_val, total_portfolio_amount=None
+    )
+    insert_cash_snapshot(snapshot)
+    print(
+        f"[sunday_processing] Cash snapshot written for {as_of_date}: prev={prev_cash_val:.2f} -> new={new_cash_val:.2f}"
+    )
 
     return
 
