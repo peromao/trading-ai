@@ -1,12 +1,39 @@
 import argparse
 import asyncio
-from typing import Iterable, List, Optional, Sequence
+import os
+import sys
 from datetime import date, timedelta
+from typing import Iterable, List, Optional, Sequence
 
 import pandas as pd
 
-from app.data.collector import get_latest_cash_before, get_portfolio
-from app.data.inserter import insert_cash_snapshot, sync_positions_with_portfolio
+if (
+    __package__ is None or __package__ == ""
+):  # pragma: no cover - script execution fallback
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.data.collector import (
+    get_all_positions,
+    get_latest_cash,
+    get_latest_cash_before,
+    get_latest_orders,
+    get_latest_weekly_research,
+    get_portfolio,
+    get_stock_data,
+)
+from app.data.inserter import (
+    insert_cash_snapshot,
+    insert_latest_daily_data,
+    insert_new_order,
+    sync_positions_with_portfolio,
+)
+from app.openai_integration import deep_research_async, send_prompt
+from app.portfolio_manager import (
+    CashSnapshot,
+    apply_orders,
+    compute_cash_after_orders,
+)
+from app.prompts.prompts import Prompts
 
 
 def build_latest_prices_df(
@@ -61,19 +88,6 @@ def weekday_processing():
     Reads tickers from env var `TICKERS` (comma-separated) or uses a small default list.
     Calls the data collector and returns the fetched data.
     """
-    # Import locally to avoid issues when running as script vs module
-    from data.collector import (
-        get_stock_data,
-        get_latest_cash,
-        get_latest_cash_before,
-        get_all_positions,
-        get_latest_orders,
-        get_latest_weekly_research,
-        get_portfolio,
-    )
-    from openai_integration import send_prompt
-    from prompts.prompts import Prompts
-
     positions_df = get_all_positions()
     tickers: List[str] = []
     if not positions_df.empty:
@@ -88,13 +102,6 @@ def weekday_processing():
     data = get_stock_data(tickers)
     print("[weekday_processing] Fetch complete; inserting into sqlite: stocks_info")
     # Persist the most recent daily row per ticker
-    from data.inserter import (
-        insert_latest_daily_data,
-        insert_new_order,
-        sync_positions_with_portfolio,
-        insert_cash_snapshot,
-    )
-
     inserted = insert_latest_daily_data(data, tickers)
     print(f"[weekday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
@@ -136,12 +143,6 @@ def weekday_processing():
 
     current_portfolio = get_portfolio()
 
-    from portfolio_manager import (
-        apply_orders,
-        compute_cash_after_orders,
-        CashSnapshot,
-    )
-
     new_portfolio = apply_orders(current_portfolio, orders)
 
     sync_positions_with_portfolio(new_portfolio)
@@ -172,18 +173,6 @@ async def sunday_processing():
     Reads tickers from env var `SUNDAY_TICKERS` or falls back to `TICKERS`/default.
     Calls the data collector and returns the fetched data.
     """
-    # Import locally to avoid issues when running as script vs module
-    from data.collector import (
-        get_stock_data,
-        get_all_positions,
-        get_latest_cash,
-        get_latest_weekly_research,
-        get_latest_orders,
-    )
-
-    from openai_integration import deep_research_async
-    from prompts.prompts import Prompts
-
     positions_df = get_all_positions()
     tickers: List[str] = []
     if not positions_df.empty:
@@ -198,8 +187,6 @@ async def sunday_processing():
     data = get_stock_data(tickers)
     print("[sunday_processing] Fetch complete; inserting into sqlite: stocks_info")
     # Persist the most recent daily row per ticker
-    from data.inserter import insert_latest_daily_data
-
     inserted = insert_latest_daily_data(data, tickers)
     print(f"[sunday_processing] Upserted {inserted} rows into stocks_info (sqlite)")
 
@@ -251,12 +238,6 @@ async def sunday_processing():
     except Exception as e:
         print(f"[sunday_processing] Failed to append weekly research: {e}")
         return
-
-    from portfolio_manager import (
-        apply_orders,
-        compute_cash_after_orders,
-        CashSnapshot,
-    )
 
     current_portfolio = get_portfolio()
 
