@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import pandas as pd
 from data.db import bootstrap_db, get_connection
 
-from openai_integration import Order
+from domain.models import Order
 from portfolio_manager import Portfolio, CashSnapshot
 
 def _to_date_str(ts) -> str:

@@ -7,7 +7,8 @@ from datetime import datetime
 
 from agents import Agent, Runner, WebSearchTool
 from agents.models import _openai_shared as _agents_openai_shared
-from pydantic import BaseModel, Field
+
+from domain.models import AiDecision, Order, WeeklyResearch
 
 try:
     from dotenv import load_dotenv
@@ -26,25 +27,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 if load_dotenv is not None:
     load_dotenv()  # nosec: loads .env into process env if present
-
-
-class Order(BaseModel):
-    ticker: str
-    qty: int
-    price: float = Field(..., ge=0.0)
-
-
-class AiDecision(BaseModel):
-    daily_summary: str
-    orders: list[Order]
-    explanation: str
-
-
-class WeeklyResearch(BaseModel):
-    research: str
-    orders: list[Order]
-
-
 DEFAULT_DAILY_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 DEFAULT_RESEARCH_MODEL = os.getenv(
     "OPENAI_RESEARCH_MODEL", "o4-mini-deep-research-2025-06-26"

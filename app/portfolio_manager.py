@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Iterable, Optional, Tuple
 
-from openai_integration import Order
+from domain.models import Order
 
 
 @dataclass(frozen=True)
