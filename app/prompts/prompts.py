@@ -214,7 +214,7 @@ class Prompts:
             "- Não concentrar >25% do portfólio em um único ativo.\n"
             "- Manter pelo menos 10% do portfólio em caixa.\n"
             "- Rebalancear quando necessário.\n"
-            "- Não é obrigatório agir todos os dias.\n\n"
+            "- Não é obrigatório agir.\n\n"
             "Como responder\n\n"
             "- research: Criação da teoria macro para a próxima semana\n"
             "- orders: Manter (sem novas ordens) OU Comprar/Vender (listar ordens com ticker, quantidade, preço-alvo aproximado).\n"
