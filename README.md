@@ -1,99 +1,156 @@
 # tr(AI)ding
 
-tr(AI)ding is an experimental system for automating a U.S. equities investment portfolio using AI agents.
-It combines two complementary agents:
+Automated portfolio manager for U.S. equities powered by two cooperating AI agents:
+- Weekly agent (Sunday) performs macro “deep research” and writes the week’s strategy.
+- Daily agent (Monday–Friday) executes tactical decisions aligned to that strategy.
 
-Weekly agent (Sunday): performs macro/strategic analysis of the portfolio and produces a “market theory” to guide the upcoming week.
+The system orchestrates data collection (positions, cash, executed orders), updates market prices (yfinance), builds prompts, and runs OpenAI models via the Agents SDK. It targets a medium/long‑term portfolio with risk controls and minimal churn, while remaining responsive day to day.
 
-Daily agent (Monday–Friday): runs after market close and makes tactical decisions (buy, sell, hold, rebalance, or take no action), always aligned with the weekly strategy.
+Language note: The prompt instructions are in Portuguese (pt‑BR). Change `app/prompts/prompts.py` if you prefer English.
 
-The project orchestrates portfolio data collection (positions, cash, executed orders), updates market prices, builds prompts, and executes interactions with OpenAI models. The goal is to simulate a medium/long-term portfolio with diversification and risk management rules, while still allowing dynamic day-to-day adjustments.
+## Features
+- Two agents with clear roles: strategic (weekly) and tactical (daily)
+- SQLite persistence for cash, positions, orders, and market candles
+- YFinance daily OHLCV ingestion with idempotent upserts
+- OpenAI Agents SDK integration with optional web search for weekly research
+- Simple scheduler with configurable run times
 
-## QuickStart
+## Architecture
+- Orchestrator (`app/orchestrator.py`)
+  - Weekday flow: assembles inputs, builds prompt (`Prompts.daily_ai_prompt`), calls `send_prompt`, applies orders to the portfolio, syncs positions/cash.
+  - Sunday flow: assembles inputs, builds weekend prompt, runs `deep_research_async` with `WebSearchTool`, appends a new dated section to `ai_weekly_research.md`.
+- Prompts (`app/prompts/prompts.py`)
+  - Centralized builders for weekday/weekend prompts; tables are embedded as plain‑text for model readability.
+- AI Integration (`app/openai_integration.py`)
+  - Daily: `Agent` + `Runner.run_sync(...)` returns `AiDecision` with `daily_summary`, `orders`, `explanation`.
+  - Weekly: `Agent(tools=[WebSearchTool()])` + `Runner.run_streamed(...)` returns `WeeklyResearch` with `research` and optional `orders`.
+  - Uses a shared `AsyncOpenAI` client (if available) with configurable timeouts/retries.
+- Data Access (`app/data/*.py`)
+  - `db.py`: schema bootstrap and helpers.
+  - `collector.py`: reads SQLite and external sources (yfinance) and cleans tickers.
+  - `inserter.py`: upserts market data; inserts orders; syncs positions; writes cash snapshots.
+- Domain (`app/portfolio_manager.py`)
+  - Minimal portfolio model; order application and cash arithmetic.
 
-Quickstart instructions to set up a virtual environment, install dependencies, and run the code.
+Design style: “clean‑ish” layering
+- Prompt wording is isolated from IO; IO is isolated from domain mutations.
+- Functions return simple dataclasses/Pydantic models to keep boundaries explicit.
 
-**Prerequisites**
-- Python 3.9+ installed (`python3 --version`)
+## Data Model
+SQLite (default `db.sqlite3`, configurable via `DB_PATH`):
+- `cash(date PRIMARY KEY, amount REAL, total_portfolio_amount REAL)`
+- `positions(date TEXT NOT NULL, ticker TEXT NOT NULL, qty REAL, avg_price REAL, UNIQUE(date,ticker))`
+- `orders(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, ticker TEXT NOT NULL, qty REAL, price REAL)`
+- `stocks_info(date TEXT NOT NULL, ticker TEXT NOT NULL, open REAL, high REAL, low REAL, close REAL, volume INTEGER, dividends REAL DEFAULT 0.0, stock_splits REAL DEFAULT 0.0, PRIMARY KEY(date,ticker))`
 
-**Create and activate a virtual environment**
-- macOS/Linux:
+`ai_weekly_research.md` stores weekly strategy sections with headers like `# YYYY-MM-DD`. The most recent dated section is parsed and injected into prompts.
+
+## Quickstart
+Prerequisites
+- Python 3.9+
+
+Environment
+1) Create and activate a virtual environment
+- macOS/Linux
   - `python3 -m venv .venv`
   - `source .venv/bin/activate`
-- Windows (PowerShell):
+- Windows (PowerShell)
   - `python -m venv .venv`
-  - `.venv\\Scripts\\Activate.ps1`
+  - `.venv\Scripts\Activate.ps1`
 
-Upgrade `pip` (recommended)
+2) Upgrade pip and install dependencies
 - `python -m pip install --upgrade pip`
-
-**Install dependencies**
 - `pip install -r requirements.txt`
+- Agents SDK and OpenAI client (if not present):
+  - `pip install agents openai`
 
-OpenAI integration (Agents SDK)
-- The app uses the OpenAI Python SDK (aka Agents SDK) via `app/openai_integration.py`.
-- Environment variables are loaded automatically from `.env` using `python-dotenv`.
-- Required variables in `.env` (repo root):
-  - `OPENAI_API_KEY=...` (required)
-  - `OPENAI_MODEL=gpt-4o-mini` (optional; defaults to `gpt-4o-mini`)
-  - `OPENAI_BASE_URL=...` (optional; for gateways/proxies)
+3) Configure `.env` (auto‑loaded via `python-dotenv`)
+- Required: `OPENAI_API_KEY=...`
+- Optional (daily): `OPENAI_MODEL=gpt-4o-mini`
+- Optional (weekly): `OPENAI_RESEARCH_MODEL=o4-mini-deep-research-2025-06-26`
+- Optional routing: `OPENAI_BASE_URL`, `OPENAI_ORG`, `OPENAI_PROJECT`
+- Optional timeouts/retries: `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES`
+- Optional DB path: `DB_PATH`
 
-Example `.env`:
+Example `.env`
 ```
 OPENAI_API_KEY=sk-your-key
 OPENAI_MODEL=gpt-4o-mini
+# OPENAI_RESEARCH_MODEL=o4-mini-deep-research-2025-06-26
 # OPENAI_BASE_URL=https://your-gateway/v1
+# DB_PATH=/abs/path/to/db.sqlite3
 ```
 
-If you need additional libraries, add them with `pip install <package>` and then freeze the current set into `requirements.txt` so others can reproduce your environment:
-- `pip freeze > requirements.txt`
+## Running
+Weekday run
+- `python app/orchestrator.py --run weekday`
+- or `python -m app.orchestrator --run weekday`
+Behavior
+- Loads positions, dedupes tickers, fetches latest daily candles via yfinance, upserts into `stocks_info`.
+- Loads latest cash, latest‑date orders, and latest weekly research.
+- Builds the daily prompt and calls the model. If orders are returned, inserts them, updates positions, and writes a new cash snapshot.
 
-**Data storage**
-- Local SQLite database at `db.sqlite3` (configurable with env `DB_PATH`).
-  - Tables and keys:
-    - `cash(date PRIMARY KEY, amount, total_portfolio_amount)`
-    - `positions(date, ticker, qty, avg_price, UNIQUE(date, ticker))`
-    - `orders(id INTEGER PRIMARY KEY AUTOINCREMENT, date, ticker, qty, price)`
-    - `stocks_info(date, ticker, open, high, low, close, volume, dividends, stock_splits, PRIMARY KEY(date, ticker))`
-- `ai_weekly_research.md` (weekly strategy)
-  - Markdown with dated headers like `# YYYY-MM-DD`. The most recent dated section is parsed and used as strategic guidance.
-
-**Run the orchestrator (weekday)**
-- Ensure the SQLite tables contain your starting data and `.env` is configured.
-- Run once:
-  - `python app/orchestrator.py --run weekday`
-  - or: `python -m app.orchestrator --run weekday`
-  - Behavior:
-    - Loads positions from SQLite and derives unique tickers.
-    - Fetches latest daily prices with yfinance and upserts into SQLite table `stocks_info`.
-    - Loads latest cash and latest-date orders from SQLite, and the latest weekly research section.
-    - Builds a compact prompt with this data (`app/prompts/prompts.py`) and sends it to the OpenAI model.
-
-**Run the Sunday processing (optional)**
+Sunday run
 - `python app/orchestrator.py --run sunday`
-- Collects data similarly but does not send the AI prompt by default.
+Behavior
+- Loads positions/cash/prices and last week’s orders.
+- Builds the weekend prompt and launches deep research with web search tool.
+- Appends a new dated section to `ai_weekly_research.md`.
 
-**Start the recurring scheduler**
-- Configure times (local timezone):
-  - `WEEKDAY_AT` in `HH:MM` (default: `18:00`)
-  - `SUNDAY_AT` in `HH:MM` (default: `09:00`)
-- Start the loop:
-  - `python -m app.schedule_runner`
-- Optionally kick off a job immediately and continue scheduling:
+Scheduler
+- Configure local times: `WEEKDAY_AT` (default 18:00), `SUNDAY_AT` (default 09:00)
+- Start loop: `python -m app.schedule_runner`
+- Run immediately and continue scheduling:
   - `python -m app.schedule_runner --run-now weekday`
   - `python -m app.schedule_runner --run-now sunday`
 
-When you’re done, deactivate the virtual environment:
-- `deactivate`
+## Development
+Project layout highlights
+- `app/data/db.py`: connection + schema bootstrap
+- `app/data/collector.py`: readers for cash/positions/orders/weekly_research and yfinance wrapper
+- `app/data/inserter.py`: idempotent upserts for market data and syncing routines
+- `app/prompts/prompts.py`: central prompt builders (weekday + weekend)
+- `app/openai_integration.py`: Agents SDK glue; daily and weekly runners
+- `app/orchestrator.py`: end‑to‑end flows
+- `app/portfolio_manager.py`: domain helpers to apply orders and compute cash
 
-Project structure highlights
-- `app/data/db.py`: SQLite helpers (connection, schema init, query helper).
-- `app/data/collector.py`
-  - `get_all_positions()`: loads and cleans positions (from SQLite).
-  - `get_latest_cash()`: reads the latest cash row (from SQLite).
-  - `get_latest_orders()`: returns all rows from the latest date in SQLite `orders`.
-  - `get_latest_weekly_research()`: parses the latest dated section from the weekly research Markdown.
-- `app/data/inserter.py`: upserts the latest daily market row per ticker into SQLite `stocks_info`.
-- `app/prompts/prompts.py`: `Prompts.daily_ai_prompt(...)` builds the daily prompt (includes plain-text table snapshots derived from DataFrames for readability).
-- `app/openai_integration.py`: minimal wrapper over the OpenAI Agents SDK `responses.create(...)` API.
-- `app/orchestrator.py`: coordinates the weekday/sunday flows and calls the AI.
+Style & conventions
+- Keep prompt text centralized in `Prompts`. Avoid duplicating strings elsewhere.
+- Keep data transforms pure; isolate side effects in orchestrator/inserters.
+- Maintain the Pydantic contracts:
+  - `AiDecision { daily_summary:str, orders:list[Order], explanation:str }`
+  - `Order { ticker:str, qty:int, price:float>=0 }`
+  - `WeeklyResearch { research:str, orders:list[Order] }`
+
+Seeding the database (example)
+```sql
+-- Using sqlite3 CLI
+-- Create tables automatically by running any flow once, or manually:
+--   python -m app.orchestrator --run weekday
+-- Then seed initial data if needed:
+INSERT INTO cash(date, amount, total_portfolio_amount) VALUES ('2025-01-01', 10000, NULL)
+  ON CONFLICT(date) DO UPDATE SET amount=excluded.amount;
+INSERT INTO positions(date, ticker, qty, avg_price) VALUES ('2025-01-01','AAPL',10,180.0);
+```
+
+Offline testing for weekly research
+```python
+from app.openai_integration import deep_research_async
+import asyncio
+
+async def demo():
+    res = await deep_research_async("test context", use_mock=True)
+    print(res.model_dump())
+
+asyncio.run(demo())
+```
+
+## Troubleshooting
+- Missing API key: ensure `OPENAI_API_KEY` is present in `.env`.
+- Empty prompts: verify that positions/cash/orders tables have data.
+- Long prompts: reduce embedded table rows or trim `ai_weekly_research.md`.
+- Scheduler timing: confirm server timezone; adjust `WEEKDAY_AT`/`SUNDAY_AT`.
+- Dependencies: if you see `ModuleNotFoundError: agents` or `openai`, install them with `pip install agents openai` and consider adding them to `requirements.txt`.
+
+## Disclaimer
+This project is for research/education. It is not financial advice. Use at your own risk.
