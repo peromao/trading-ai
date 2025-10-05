@@ -3,7 +3,6 @@ import asyncio
 import os
 import sys
 from datetime import date, timedelta
-import pandas as pd
 
 if (
     __package__ is None or __package__ == ""
@@ -13,23 +12,13 @@ if (
 from app.data.collector import (
     get_all_positions,
     get_latest_cash,
-    get_latest_cash_before,
     get_latest_orders,
     get_latest_weekly_research,
-    get_portfolio,
 )
-from app.data.inserter import (
-    insert_cash_snapshot,
-    insert_new_order,
-    sync_positions_with_portfolio,
-)
+from app.data.inserter import insert_new_order
 from app.openai_integration import deep_research_async, send_prompt
-from app.portfolio_manager import (
-    CashSnapshot,
-    apply_orders,
-    compute_cash_after_orders,
-)
 from app.services.context_builder import build_market_context
+from app.services.post_trade import apply_orders_and_persist
 from app.prompts.prompts import Prompts
 
 
@@ -74,36 +63,18 @@ def weekday_processing():
 
     orders = ai_decision.orders
 
-    if len(orders) != 0:
-        print(f"[weekday_processing] Inserting {len(orders)} orders")
-        for order in orders:
-            insert_new_order(order)
-            print(f"[weekday_processing] Order inserted: {order}")
-    else:
+    if not orders:
         print(f"[weekday_processing] No orders for today")
         return
 
-    current_portfolio = get_portfolio()
+    print(f"[weekday_processing] Inserting {len(orders)} orders")
+    for order in orders:
+        insert_new_order(order)
+        print(f"[weekday_processing] Order inserted: {order}")
 
-    new_portfolio = apply_orders(current_portfolio, orders)
-
-    sync_positions_with_portfolio(new_portfolio)
-
-    as_of_date = pd.Timestamp.utcnow().date()
-    prior_cash = get_latest_cash_before(as_of_date)
-    prev_amount = prior_cash.get("amount") if prior_cash else None
-    prev_cash_val = (
-        0.0 if prev_amount is None or pd.isna(prev_amount) else float(prev_amount)
-    )
-
-    new_cash_val = compute_cash_after_orders(prev_cash_val, orders)
-
-    snapshot = CashSnapshot(
-        date=as_of_date, amount=new_cash_val, total_portfolio_amount=None
-    )
-    insert_cash_snapshot(snapshot)
+    post_trade = apply_orders_and_persist(orders)
     print(
-        f"[weekday_processing] Cash snapshot written for {as_of_date}: prev={prev_cash_val:.2f} -> new={new_cash_val:.2f}"
+        f"[weekday_processing] Cash snapshot written for {post_trade.as_of_date}: prev={post_trade.previous_cash:.2f} -> new={post_trade.new_cash:.2f}"
     )
 
     return
@@ -172,29 +143,11 @@ async def sunday_processing():
         print(f"[sunday_processing] Failed to append weekly research: {e}")
         return
 
-    current_portfolio = get_portfolio()
-
     orders = new_weekly_research.orders
 
-    new_portfolio = apply_orders(current_portfolio, orders)
-
-    sync_positions_with_portfolio(new_portfolio)
-
-    as_of_date = pd.Timestamp.utcnow().date()
-    prior_cash = get_latest_cash_before(as_of_date)
-    prev_amount = prior_cash.get("amount") if prior_cash else None
-    prev_cash_val = (
-        0.0 if prev_amount is None or pd.isna(prev_amount) else float(prev_amount)
-    )
-
-    new_cash_val = compute_cash_after_orders(prev_cash_val, orders)
-
-    snapshot = CashSnapshot(
-        date=as_of_date, amount=new_cash_val, total_portfolio_amount=None
-    )
-    insert_cash_snapshot(snapshot)
+    post_trade = apply_orders_and_persist(orders)
     print(
-        f"[sunday_processing] Cash snapshot written for {as_of_date}: prev={prev_cash_val:.2f} -> new={new_cash_val:.2f}"
+        f"[sunday_processing] Cash snapshot written for {post_trade.as_of_date}: prev={post_trade.previous_cash:.2f} -> new={post_trade.new_cash:.2f}"
     )
 
     return
